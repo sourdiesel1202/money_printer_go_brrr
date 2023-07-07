@@ -3,6 +3,7 @@ import datetime
 from zoneinfo import ZoneInfo
 from history import load_ticker_history_pd_frame, load_ticker_history_csv
 from stockstats import wrap
+today =datetime.datetime.now().strftime("%Y-%m-%d")
 def load_macd(ticker, client,module_config,  **kwargs):
     macd = client.get_macd(ticker=ticker, **kwargs)
     _macd = []
@@ -19,7 +20,7 @@ def load_macd(ticker, client,module_config,  **kwargs):
         _macd.append(entry)
     return _macd
 
-def load_sma(ticker, client,module_config, **kwargs):
+def load_sma(ticker, client,module_config, ticker_history, **kwargs):
     sma = client.get_sma(ticker, **kwargs)
     _sma = []
     for entry in sma.values:
@@ -30,7 +31,7 @@ def load_sma(ticker, client,module_config, **kwargs):
         _sma.append(entry)
 
 
-    return sma
+    return _sma
 def load_rsi(ticker, client,module_config, **kwargs):
     rsi = client.get_rsi(ticker, timespan='hour')
     _rsi = []
@@ -55,10 +56,10 @@ def load_dmi_adx(ticker, client,module_config, **kwargs):
     :param kwargs:
     :return:
     '''
-    history_entries = load_ticker_history_csv(ticker,  client, 1, "hour", "2023-07-06", "2023-07-06", 500)
+    history_entries = load_ticker_history_csv(ticker,  client, 1, "hour", datetime.datetime.now().strftime("%y-%m-%d"), today, 500)
     print(f"{datetime.datetime.fromtimestamp(history_entries[1][0] / 1e3, tz=ZoneInfo('US/Eastern'))} {history_entries[1][0]}")
     print(f"{datetime.datetime.fromtimestamp(history_entries[1][-1] / 1e3, tz=ZoneInfo('US/Eastern'))} {history_entries[1][0]}")
-    df= wrap(load_ticker_history_pd_frame(ticker, client, 1, "hour", "2023-07-06", "2023-07-06", 500))
+    df= wrap(load_ticker_history_pd_frame(ticker, client, 1, "hour", today, today, 500))
     dmi= {"dmi+":df['pdi'],"dmi-":df['ndi'], "adx":df['adx']}
     for i in range(1, len(history_entries)):
         print(f"{datetime.datetime.fromtimestamp(history_entries[i][0] / 1e3, tz=ZoneInfo('US/Eastern'))} DMI+: {dmi['dmi+'][history_entries[i][0]]} DMI-:{dmi['dmi-'][history_entries[i][0]]} ADX: {dmi['adx'][history_entries[i][0]]}")
@@ -77,6 +78,21 @@ def did_macd_alert(data, ticker,module_config):
     else:
         return False
     pass
+def did_sma_alert(sma_data,ticker_data, ticker,module_config):
+    # ok so in the case of
+    entry_date = datetime.datetime.fromtimestamp(sma_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+    entry_date_ticker = datetime.datetime.fromtimestamp(ticker_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+    # print(f"{entry_date}:{ticker}: SMA Alert Check ")
+    # print(f"{entry_date_ticker}:{ticker}: SMA Alert Check ")
+    if ((ticker_data[-1].close > sma_data[0].value and ticker_data[-1].open > sma_data[0].value and ticker_data[-1].close > ticker_data[-1].open) and ticker_data[-2].open  < sma_data[1].value ) or \
+       ((ticker_data[-1].close < sma_data[0].value and ticker_data[-1].open < sma_data[0].value and ticker_data[-1].close < ticker_data[-1].open)  and ticker_data[-2].open  > sma_data[1].value ):
+        if module_config['logging']:
+            print(f"{entry_date_ticker}:{ticker}: SMA Crossover Alert Fired on {ticker}")
+        return True
+    else:
+        return False
+
+
 def did_dmi_alert(data, ticker,module_config):
     pass
 
