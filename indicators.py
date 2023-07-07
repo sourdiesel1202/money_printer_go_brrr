@@ -66,27 +66,25 @@ def load_dmi_adx(ticker, client,module_config, **kwargs):
     return dmi
 
 
-def did_macd_alert(data, ticker=""):
+def did_macd_alert(data, ticker,module_config):
     print(f"checking macd for {ticker}")
     #ok so the idea here is to look at the data for n vs  n-1 where n is the most recent macd reading
     if (data[0].value > data[0].signal and data[1].value < data[1].signal)  or (data[0].value < data[0].signal and data[1].value > data[1].signal):
+
         entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
         print(f"{entry_date}:{ticker}: MAC/Signal Crossover ")
         return True
     else:
         return False
-
-
-
-    # ok so first things first,
     pass
-def did_dmi_alert(data):
+def did_dmi_alert(data, ticker,module_config):
     pass
 
-def did_rsi_alert(data, ticker=""):
-    if data[0].value > 80 or data[0].value < 50:
-        entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
-        print(f"{entry_date}:{ticker}: RSI Alerted at {data[0].value} ")
+def did_rsi_alert(data, ticker,module_config):
+    if data[0].value > 80 or data[0].value < 20:
+        if module_config['logging']:
+            entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            print(f"{entry_date}:{ticker}: RSI Alerted at {data[0].value} ")
         return True
     else:
         return  False
