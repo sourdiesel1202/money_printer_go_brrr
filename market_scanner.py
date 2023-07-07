@@ -40,7 +40,8 @@ def process_tickers(tickers):
             ticker_results[ticker]['macd']= did_macd_alert(macd_data, ticker, module_config)
                 # print("alert worked")
             ticker_results[ticker]['rsi']= did_rsi_alert(load_rsi(ticker, client, module_config), ticker, module_config)
-            ticker_results[ticker]['dmi'] = did_dmi_alert(load_dmi_adx(ticker, client, ticker_history, module_config), ticker_history, "GE", module_config)
+            ticker_results[ticker]['dmi'] = did_dmi_alert(load_dmi_adx(ticker, client, ticker_history, module_config), ticker_history, ticker, module_config)
+            ticker_results[ticker]['adx'] = did_adx_alert(load_dmi_adx(ticker, client, ticker_history, module_config), ticker_history, ticker, module_config)
                 # print("RSI Alerted")
             # sma_data = load_sma(ticker, client, module_config, timespan="hour", )
             # # ticker_history = load_ticker_history(ticker, client,module_config,multiplier=1, timespan="hour", from_="2023-07-06", to="2023-07-06",limit=50)
@@ -55,8 +56,8 @@ def process_tickers(tickers):
     results = []
     for k, v in ticker_results.items():
         try:
-            cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi']}
-            results.append([k, cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi']])
+            cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi'], 'adx': v['adx']}
+            results.append([k, cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx']])
             matched_conditions = []
             for kk, vv in cond_dict.items():
                 if vv:
@@ -70,7 +71,7 @@ def process_tickers(tickers):
     # results.sort(key=lambda x:int(x[-2]))
     # sorted(results, key=lambda x: x[-2])
     # results.reverse()
-    results.insert(0,['symbol','macd_flag', 'rsi_flag', 'sma_flag','dmi_flag', 'pick_level', 'conditions_matched'] )
+    results.insert(0,['symbol','macd_flag', 'rsi_flag', 'sma_flag','dmi_flag', 'adx_flag' 'pick_level', 'conditions_matched'] )
     # new_results = reversed(list(sorted(results, key=lambda x: x[-2])))
     # new
     write_csv(f"{os.getpid()}.csv", results)
