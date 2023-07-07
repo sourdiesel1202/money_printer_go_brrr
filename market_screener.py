@@ -45,7 +45,11 @@ def process_tickers(tickers):
             print(f"Cannot process ticker: {ticker}")
     results = [['symbol','macd_flag', 'rsi_flag']]
     for k, v in ticker_results.items():
-        results.append([k, v['macd'],v['rsi']])
+        try:
+            results.append([k, v['macd'],v['rsi']])
+        except:
+            print(f"Cannot process results for ticker {ticker}")
+            traceback.print_exc()
     write_csv(f"{os.getpid()}.csv", results)
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
@@ -60,6 +64,8 @@ if __name__ == '__main__':
     # tickers = module_config['tickers']
     tickers = read_csv("data/nyse.csv")
     del tickers[0]
+    if module_config['test_mode']:
+        tickers = tickers[:100]
     _tickers = [tickers[i][0] for i in range(0,len(tickers))]
     # _dispensarys = [x for x in dispensaries.keys()]
     task_loads = [_tickers[i:i + n] for i in range(0, len(_tickers), n)]
@@ -87,4 +93,4 @@ if __name__ == '__main__':
     # ticker_history = load_ticker_history_raw(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
     # ticke = load_ticker_history_pd_frame(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
 
-    print(f"\nCompleted in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")
+    print(f"\nCompleted NYSE Market Scan in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")
