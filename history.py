@@ -5,7 +5,7 @@ from functions import generate_csv_string, read_csv, write_csv, delete_csv
 import pandas as pd
 from stockstats import wrap
 today =datetime.datetime.now().strftime("%Y-%m-%d")
-def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = today, to = today, limit=50):
+def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = today, to = today, limit=500):
     # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
     # limit = 50000
     history_data =  []
@@ -26,7 +26,7 @@ def load_ticker_history_csv(ticker, ticker_history):
 
 def load_ticker_history_pd_frame(ticker, ticker_history):
     _str = generate_csv_string(load_ticker_history_csv(ticker,ticker_history))
-    df = pd.read_csv(io.StringIO(generate_csv_string(load_ticker_history_csv(ticker,ticker_history))), sep=",")
+    df = pd.read_csv(io.StringIO(_str), sep=",")
     return df
 
 # def load_ticker_
