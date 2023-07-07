@@ -1,0 +1,4 @@
+symbol,macd_flag,rsi_flag
+GE,False,False
+BUD,False,False
+AAPL,False,False

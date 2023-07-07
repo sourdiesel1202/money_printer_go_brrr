@@ -31,3 +31,16 @@ def generate_csv_string(rows):
         res = f.read()
     delete_csv(filename)
     return res
+def combine_csvs(files):
+    _filestr = '\n'.join(files)
+    print(f"Combining the following files {_filestr}")
+    records = []
+    for _file in files:
+        rows= read_csv(_file)
+        if len(records) == 0:
+            records.append(rows[0])
+
+        for i in range(1, len(rows)):
+            records.append(rows[i])
+        delete_csv(_file)
+    return records
