@@ -3,6 +3,7 @@ import datetime
 from zoneinfo import ZoneInfo
 from history import load_ticker_history_pd_frame, load_ticker_history_csv
 from stockstats import wrap
+from enums import *
 today =datetime.datetime.now().strftime("%Y-%m-%d")
 def load_macd(ticker, client,module_config,  **kwargs):
     macd = client.get_macd(ticker=ticker, **kwargs)
@@ -121,7 +122,7 @@ def did_dmi_alert(dmi_data,ticker_data,ticker,module_config):
 
 
 def did_rsi_alert(data, ticker,module_config):
-    if data[0].value > 80 or data[0].value < 20:
+    if data[0].value > module_config['rsi_overbought_threshold'] or data[0].value < module_config['rsi_oversold_threshold']:
         if module_config['logging']:
             entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
             print(f"{entry_date}:{ticker}: RSI Alerted at {data[0].value} ")
@@ -131,6 +132,20 @@ def did_rsi_alert(data, ticker,module_config):
 
 def determine_macd_direction(data):
     pass
+def determine_rsi_direction(data, ticker, module_config):
+    if data[0].value > module_config['rsi_overbought_threshold']:
+        if module_config['logging']:
+            entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {data[0].value} ")
+        return AlertType.RSI_OVERBOUGHT
+    elif data[0].value > module_config['rsi_oversold_threshold']:
+        if module_config['logging']:
+            entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {data[0].value} ")
+        return AlertType.RSI_OVERSOLD
+    else:
+        raise Exception("Could not determine RSI Direction")
+
 def determine_adx_direction(data):
     pass
 

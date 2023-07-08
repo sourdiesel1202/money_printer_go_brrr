@@ -9,6 +9,7 @@ import polygon, datetime
 import time
 from zoneinfo import ZoneInfo
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert
+from indicators import determine_rsi_direction
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
 from functions import  load_module_config, read_csv, write_csv,combine_csvs
 module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
@@ -27,7 +28,7 @@ def process_tickers(tickers):
 
         try:
             ticker = tickers[i]
-            ticker_results[ticker] = {}
+            ticker_results[ticker] = {'directions':[]}
 
             if '$' in ticker:
                 continue
@@ -37,18 +38,16 @@ def process_tickers(tickers):
             ticker_results[ticker]['sma'] = did_sma_alert(sma, ticker_history, "GE", module_config)
 
             macd_data = load_macd(ticker, client, module_config, timespan="hour", )
+            dmi_adx_data = load_dmi_adx(ticker, client, ticker_history, module_config)
+            rsi_data = load_rsi(ticker, client, module_config)
             ticker_results[ticker]['macd']= did_macd_alert(macd_data, ticker, module_config)
                 # print("alert worked")
-            ticker_results[ticker]['rsi']= did_rsi_alert(load_rsi(ticker, client, module_config), ticker, module_config)
-            ticker_results[ticker]['dmi'] = did_dmi_alert(load_dmi_adx(ticker, client, ticker_history, module_config), ticker_history, ticker, module_config)
-            ticker_results[ticker]['adx'] = did_adx_alert(load_dmi_adx(ticker, client, ticker_history, module_config), ticker_history, ticker, module_config)
-                # print("RSI Alerted")
-            # sma_data = load_sma(ticker, client, module_config, timespan="hour", )
-            # # ticker_history = load_ticker_history(ticker, client,module_config,multiplier=1, timespan="hour", from_="2023-07-06", to="2023-07-06",limit=50)
-            #
-            # aggs = []
-            # dmi = load_dmi_adx(ticker,client)
-            # rsi = load_rsi(ticker, client)
+            ticker_results[ticker]['rsi']= did_rsi_alert(rsi_data, ticker, module_config)
+            if ticker_results[ticker]['rsi']:
+                ticker_results[ticker]['directions'].append(determine_rsi_direction(rsi_data,ticker, module_config))
+            ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker_history, ticker, module_config)
+            ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data, ticker_history, ticker, module_config)
+
         except:
             traceback.print_exc()
             print(f"Cannot process ticker: {ticker}")
@@ -58,12 +57,16 @@ def process_tickers(tickers):
         try:
             cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi'], 'adx': v['adx']}
             results.append([k, cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx']])
+            # basis = []
+            # if cond_dict['rsi']:
+            #     determine_rsi_direction()
             matched_conditions = []
             for kk, vv in cond_dict.items():
                 if vv:
                     matched_conditions.append(kk)
             results[-1].append(len(matched_conditions))
             results[-1].append(','.join(matched_conditions))
+            results[-1].append(','.join(v['directions']))
         except:
             print(f"Cannot process results for ticker {ticker}")
             traceback.print_exc()
@@ -71,7 +74,7 @@ def process_tickers(tickers):
     # results.sort(key=lambda x:int(x[-2]))
     # sorted(results, key=lambda x: x[-2])
     # results.reverse()
-    results.insert(0,['symbol','macd_flag', 'rsi_flag', 'sma_flag','dmi_flag', 'adx_flag' 'pick_level', 'conditions_matched'] )
+    results.insert(0,['symbol','macd_flag', 'rsi_flag', 'sma_flag','dmi_flag', 'adx_flag','pick_level', 'conditions_matched', 'reasons'] )
     # new_results = reversed(list(sorted(results, key=lambda x: x[-2])))
     # new
     write_csv(f"{os.getpid()}.csv", results)
@@ -109,7 +112,7 @@ def find_tickers():
     header = combined[0]
     del combined[0]
     # sorted(combined, key=lambda x: int(x[-2]))
-    combined.sort(key=operator.itemgetter(-2))
+    combined.sort(key=operator.itemgetter(header.index("pick_level")))
     combined.reverse()
     # results.reverse()
     combined.insert(0, header)
