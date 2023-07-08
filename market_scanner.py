@@ -9,11 +9,12 @@ import polygon, datetime
 import time
 from zoneinfo import ZoneInfo
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert
-from indicators import determine_rsi_direction
+from indicators import determine_rsi_direction, determine_macd_direction,determine_adx_direction,determine_dmi_direction
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
 from functions import  load_module_config, read_csv, write_csv,combine_csvs
 module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 today =datetime.datetime.now().strftime("%Y-%m-%d")
+required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
     # ticker = "GE"
@@ -25,9 +26,9 @@ def process_tickers(tickers):
         # for i in range(1, len(module_config['tickers'])):
         # for ticker in module_config['tickers']:
         #     ticker = module_config['tickers'][i]
-
+        ticker = tickers[i]
         try:
-            ticker = tickers[i]
+
             ticker_results[ticker] = {'directions':[]}
 
             if '$' in ticker:
@@ -41,12 +42,19 @@ def process_tickers(tickers):
             dmi_adx_data = load_dmi_adx(ticker, client, ticker_history, module_config)
             rsi_data = load_rsi(ticker, client, module_config)
             ticker_results[ticker]['macd']= did_macd_alert(macd_data, ticker, module_config)
+            if ticker_results[ticker]['macd']:
+                ticker_results[ticker]['directions'].append(determine_macd_direction(macd_data, ticker,module_config))
                 # print("alert worked")
             ticker_results[ticker]['rsi']= did_rsi_alert(rsi_data, ticker, module_config)
             if ticker_results[ticker]['rsi']:
                 ticker_results[ticker]['directions'].append(determine_rsi_direction(rsi_data,ticker, module_config))
             ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker_history, ticker, module_config)
+            if ticker_results[ticker]['dmi']:
+                ticker_results[ticker]['directions'].append(determine_dmi_direction(rsi_data,ticker, module_config))
             ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data, ticker_history, ticker, module_config)
+            if ticker_results[ticker]['adx']:
+                ticker_results[ticker]['directions'].append(determine_adx_direction(rsi_data,ticker, module_config))
+
 
         except:
             traceback.print_exc()
@@ -54,6 +62,14 @@ def process_tickers(tickers):
     # results = [['symbol','macd_flag', 'rsi_flag', 'sma_flag', 'pick_level', 'conditions_matched']]
     results = []
     for k, v in ticker_results.items():
+        missing_key = False
+        for required_key in required_indicators:
+            missing_key = required_key not in v
+
+        if missing_key:
+            if module_config['logging']:
+                print(f"{k} is missing a required config: Found {[x for x in v.keys()]} Required: {required_indicators}")
+            continue
         try:
             cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi'], 'adx': v['adx']}
             results.append([k, cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx']])
@@ -68,7 +84,7 @@ def process_tickers(tickers):
             results[-1].append(','.join(matched_conditions))
             results[-1].append(','.join(v['directions']))
         except:
-            print(f"Cannot process results for ticker {ticker}")
+            print(f"Cannot process results for ticker {k}")
             traceback.print_exc()
     # new_results = []
     # results.sort(key=lambda x:int(x[-2]))

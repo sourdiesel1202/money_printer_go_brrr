@@ -70,12 +70,14 @@ def load_dmi_adx(ticker, client, ticker_history, module_config, **kwargs):
 
 
 def did_macd_alert(data, ticker,module_config):
-    print(f"checking macd for {ticker}")
+    if module_config['logging']:
+        print(f"checking macd for {ticker}")
     #ok so the idea here is to look at the data for n vs  n-1 where n is the most recent macd reading
     if (data[0].value > data[0].signal and data[1].value < data[1].signal)  or (data[0].value < data[0].signal and data[1].value > data[1].signal):
 
-        entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
-        print(f"{entry_date}:{ticker}: MAC/Signal Crossover ")
+        if module_config['logging']:
+            entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            print(f"{entry_date}:{ticker}: MAC/Signal Crossover ")
         return True
     else:
         return False
@@ -130,8 +132,18 @@ def did_rsi_alert(data, ticker,module_config):
     else:
         return  False
 
-def determine_macd_direction(data):
-    pass
+def determine_macd_direction(data, ticker,module_config):
+    # ok so the idea here is to look at the data for n vs  n-1 where n is the most recent macd reading
+    if (data[0].value > data[0].signal and data[1].value < data[1].signal) :
+
+        if module_config['logging']:
+            entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            print(f"{entry_date}:{ticker}: MAC/Signal Crossover ")
+        return AlertType.MACD_MACD_CROSS_SIGNAL
+    elif (data[0].value < data[0].signal and data[1].value > data[1].signal):
+        return AlertType.MACD_SIGNAL_CROSS_MACD
+    else:
+        raise Exception(f"Could not determine MACD direction for: {ticker}")
 def determine_rsi_direction(data, ticker, module_config):
     if data[0].value > module_config['rsi_overbought_threshold']:
         if module_config['logging']:
@@ -144,10 +156,21 @@ def determine_rsi_direction(data, ticker, module_config):
             print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {data[0].value} ")
         return AlertType.RSI_OVERSOLD
     else:
-        raise Exception("Could not determine RSI Direction")
+        raise Exception(f"Could not determine RSI Direction for {ticker}")
 
-def determine_adx_direction(data):
-    pass
+def determine_adx_direction(data, ticker, module_config):
+    return AlertType.ADX_THRESHOLD_UPWARD
 
-def determine_dmi_direction(data):
-    pass
+def determine_dmi_direction(data, ticker_data, ticker, module_config):
+    if (data['dmi+'][ticker_data[-1].timestamp] > data['dmi-'][ticker_data[-1].timestamp] and data['dmi+'][ticker_data[-2].timestamp] < data['dmi-'][ticker_data[-2].timestamp] and data['dmi+'][ticker_data[-1].timestamp] > data['adx'][ticker_data[-1].timestamp]):
+        if module_config['logging']:
+            print(f"{datetime.datetime.fromtimestamp(ticker_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: DMI Alert Determined Directio: {AlertType.DMIPLUS_CROSSOVER_DMINEG} (DMI+: {data['dmi+'][ticker_data[-1].timestamp]} DMI-:{data['dmi-'][ticker_data[-1].timestamp]} ADX: {data['adx'][ticker_data[-1].timestamp]})")
+        return AlertType.DMIPLUS_CROSSOVER_DMINEG
+    elif (data['dmi+'][ticker_data[-1].timestamp] < data['dmi-'][ticker_data[-1].timestamp] and data['dmi+'][ticker_data[-2].timestamp] > data['dmi-'][ticker_data[-2].timestamp] and data['dmi-'][ticker_data[-1].timestamp] > data['adx'][ticker_data[-1].timestamp]):
+        if module_config['logging']:
+            print(f"{datetime.datetime.fromtimestamp(ticker_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: DMI Alert Determined Directio: {AlertType.DMIPLUS_CROSSOVER_DMINEG} (DMI+: {data['dmi+'][ticker_data[-1].timestamp]} DMI-:{data['dmi-'][ticker_data[-1].timestamp]} ADX: {data['adx'][ticker_data[-1].timestamp]})")
+        return AlertType.DMINEG_CROSSOVER_DMIPLUS
+
+
+    else:
+        raise Exception(f"Could not determine RSI Direction for {ticker}")
