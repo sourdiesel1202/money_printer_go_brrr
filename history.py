@@ -1,11 +1,12 @@
 from enums import OrderType
 import datetime,io
 from zoneinfo import ZoneInfo
-from functions import generate_csv_string, read_csv, write_csv, delete_csv
+from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today
 import pandas as pd
 from stockstats import wrap
-today =datetime.datetime.now().strftime("%Y-%m-%d")
-def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = today, to = today, limit=500):
+# today =datetime.datetime.now().strftime("%Y-%m-%d")
+
+def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500):
     # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
     # limit = 50000
     history_data =  []

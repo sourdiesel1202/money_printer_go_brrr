@@ -6,7 +6,7 @@ import traceback
 from enums import OrderType
 import datetime,io,os
 from zoneinfo import ZoneInfo
-from functions import generate_csv_string, read_csv, write_csv, delete_csv, combine_csvs
+from functions import generate_csv_string, read_csv, write_csv, delete_csv, combine_csvs, calculate_percentage
 from history import *
 from indicators import load_dmi_adx, did_adx_alert, did_dmi_alert, determine_dmi_direction, determine_adx_direction
 import pandas as pd
@@ -15,9 +15,11 @@ from enums import *
 import polygon, datetime
 def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_config):
     start_time = time.time()
-    print(f"Latest Ticker Entry {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+
     ticker_history = ticker_history[:-20]
-    print(f"Latest Ticker Entry (New) {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    print(f"{os.getpid()}: Oldest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    print(f"{os.getpid()}:Newest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+
     # client = polygon.RESTClient(api_key=module_config['api_key'])
     # _th = [tickers[i] for i in range(0, len(tickers))]
     # _dispensarys = [x for x in dispensaries.keys()]
@@ -39,7 +41,7 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
         print(
             f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
         time.sleep(10)
-    write_csv("mpb_backtest.csv", combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()]))
+    write_csv(f"{ticker}_backtest.csv", combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()]))
     # combined =
 def write_backtest_rawdata(lines):
     with open(f"{os.getpid()}.dat", "w+") as f:
@@ -184,8 +186,6 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
     # once we have results, we can calculate our averages
     #turn off logging
     module_config['logging'] = False
-    print(f"{os.getpid()}: Oldest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    print(f"{os.getpid()}:Newest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
     if len(ticker_history) < 20:
         raise Exception(f"Cannot backtest ticker with {len(ticker_history)} history records, need at least 20")
 
@@ -264,18 +264,40 @@ def process_results_dict(backtest_results):
                 _index = rows[0].index(key)
                 row[_index] =float(v.close)-float(data['splus0'].close)
 
+            row.append(float(data['splus9'].close)-float(data['splus0'].close)) #Total delta
+            row.append(calculate_percentage(float(data['splus9'].close)-float(data['splus0'].close),float(data['splus0'].close))) #Total delta percentage
             row.append(statistics.fmean(deltas)) #average delta
             row.append(statistics.fmean(highs)) #average high delta
             row.append(max(highs)) #max high
+            row.append(calculate_percentage(max(highs),float(data['splus0'].close))) #max high percentage
             row.append(statistics.fmean(lows)) #average low delta
             row.append(min(lows)) #min low
+            row.append(calculate_percentage(min(lows),float(data['splus0'].close))) #min low percentage
             rows.append(row)
         except:
             print(f"Unable to process result entry at {ts}")
             traceback.print_exc()
+    rows[0].append('total_delta')
+    rows[0].append('total_delta_percentage')
     rows[0].append('average_delta')
     rows[0].append('average_high_delta')
     rows[0].append('max_high_delta')
+    rows[0].append('max_high_delta_percentage')
     rows[0].append('average_low_delta')
-    rows[0].append('max_low_delta')
+    rows[0].append('min_low_delta')
+    rows[0].append('min_low_delta_percentage')
     write_csv(f"{os.getpid()}backtest.csv", rows)
+
+def load_backtest_results(ticker):
+    #
+    data =  read_csv(f"{ticker}_backtest.csv")
+    json_data = {k:[] for k in data[0][1:]}
+    for i in range(1, len(data)):
+        for ii in range(1, len(data[0])):
+            try:
+                json_data[data[0][ii]].append(float(data[i][ii]))
+            except:
+                json_data[data[0][ii]].append(data[i][ii])
+
+    return json_data
+

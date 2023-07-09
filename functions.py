@@ -44,3 +44,10 @@ def combine_csvs(files):
             records.append(rows[i])
         delete_csv(_file)
     return records
+def get_today(module_config):
+    if module_config['test_mode']:
+        return module_config['test_date']
+    else:
+        return datetime.datetime.now().strftime("%Y-%m-%d")
+def calculate_percentage(x, y):
+    return (float(x)/float(y))*100.00

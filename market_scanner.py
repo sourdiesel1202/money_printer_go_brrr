@@ -11,9 +11,10 @@ from zoneinfo import ZoneInfo
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert
 from indicators import determine_rsi_direction, determine_macd_direction,determine_adx_direction,determine_dmi_direction
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
-from functions import  load_module_config, read_csv, write_csv,combine_csvs
+from functions import  load_module_config, read_csv, write_csv,combine_csvs, get_today
 module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
-today =datetime.datetime.now().strftime("%Y-%m-%d")
+# today =datetime.datetime.now().strftime("%Y-%m-%d")
+today =get_today(module_config)
 required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
@@ -50,7 +51,7 @@ def process_tickers(tickers):
                 ticker_results[ticker]['directions'].append(determine_rsi_direction(rsi_data,ticker, module_config))
             ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker,ticker_history, module_config)
             if ticker_results[ticker]['dmi']:
-                ticker_results[ticker]['directions'].append(determine_dmi_direction(rsi_data,ticker,ticker_history, module_config))
+                ticker_results[ticker]['directions'].append(determine_dmi_direction(dmi_adx_data,ticker,ticker_history, module_config))
             ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data,ticker, ticker_history, module_config)
             if ticker_results[ticker]['adx']:
                 ticker_results[ticker]['directions'].append(determine_adx_direction(dmi_adx_data,ticker_history,ticker, module_config))
@@ -104,7 +105,7 @@ def find_tickers():
         tickers = tickers[:module_config['test_population_size']]
     _tickers = [tickers[i][0] for i in range(0, len(tickers))]
     # _dispensarys = [x for x in dispensaries.keys()]
-    task_loads = [_tickers[i:i + n] for i in range(0, len(_tickers), n)]
+    task_loads = [_tickers[i:i + int(n/12)+1] for i in range(0, len(_tickers), int(n/12)+1)]
     # for k,v in dispensaries.items():
     processes = {}
     print(f"Processing {len(tickers)} in {len(task_loads)} load(s)")

@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from history import load_ticker_history_pd_frame, load_ticker_history_csv
 from stockstats import wrap
 from enums import *
-today =datetime.datetime.now().strftime("%Y-%m-%d")
+# today =datetime.datetime.now().strftime("%Y-%m-%d")
 def load_macd(ticker, client,module_config,  **kwargs):
     macd = client.get_macd(ticker=ticker, **kwargs)
     _macd = []
