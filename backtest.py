@@ -184,8 +184,8 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
     # once we have results, we can calculate our averages
     #turn off logging
     module_config['logging'] = False
-    print(f"Oldest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    print(f"Newest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    print(f"{os.getpid()}: Oldest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    print(f"{os.getpid()}:Newest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
     if len(ticker_history) < 20:
         raise Exception(f"Cannot backtest ticker with {len(ticker_history)} history records, need at least 20")
 
@@ -194,12 +194,13 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
     for i in reversed(range(10, len(ticker_history)-10)):
         _th  = ticker_history[:i] #basically the idea here is that we work backwards in time, calculating alerts and alert types at each increment
         #if the increment alert types match the input alert types, we write a result entry for ti
-        print(f"{datetime.datetime.fromtimestamp(_th[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: Processing Backtest Data")
+        if module_config['logging']:
+            print(f"{datetime.datetime.fromtimestamp(_th[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: Processing Backtest Data")
         _alert_types = []
         for indicator, eval in alert_functions.items():
             indicator_data = data_functions[indicator](ticker, ticker_history, module_config)
             if eval(indicator_data, ticker, _th,module_config):
-                print(f"{datetime.datetime.fromtimestamp(_th[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: {indicator} triggered")
+                # print(f"{datetime.datetime.fromtimestamp(_th[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: {indicator} triggered")
                 _at = alert_type_functions[indicator](indicator_data,ticker, _th,module_config)
                 if _at != None:
                     _alert_types.append(_at)
@@ -256,30 +257,25 @@ def process_results_dict(backtest_results):
                     del lows[-1]
                     del deltas[-1]
                     del highs[-1]
-                # if k == 'splus0':
-                #     del lows[-1]
-                #     del deltas[-1]
-                #     del highs[-1]
+
                 row[rows[0].index(k)] =f"|O:{v.open}|H:{v.high}|L:{v.low}|C:{v.close}|"
                 key = f"{k}_delta"
-                print(f"{os.getpid()} Keys: {json.dumps(rows[0])} key:{key}")
+                # print(f"{os.getpid()} Keys: {json.dumps(rows[0])} key:{key}")
                 _index = rows[0].index(key)
                 row[_index] =float(v.close)-float(data['splus0'].close)
 
             row.append(statistics.fmean(deltas)) #average delta
-            row.append(max(highs)) #max high delta
-            row.append(min(lows)) #min low delta
+            row.append(statistics.fmean(highs)) #average high delta
+            row.append(max(highs)) #max high
+            row.append(statistics.fmean(lows)) #average low delta
+            row.append(min(lows)) #min low
             rows.append(row)
         except:
             print(f"Unable to process result entry at {ts}")
             traceback.print_exc()
     rows[0].append('average_delta')
     rows[0].append('average_high_delta')
+    rows[0].append('max_high_delta')
     rows[0].append('average_low_delta')
+    rows[0].append('max_low_delta')
     write_csv(f"{os.getpid()}backtest.csv", rows)
-# def load_backtest_indicator(indicator, ticker, ticker_history, module_config):
-    # print(f"{datetime.datetime.fromtimestamp(ticker_history[1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    # print(f"{datetime.datetime.fromtimestamp(ticker_history[1][-1] / 1e3, tz=ZoneInfo('US/Eastern'))} {ticker_history[1][0]}")
-    # df= wrap(load_ticker_history_pd_frame(ticker, ticker_history))
-    # indicator_data = df[indicator]
-    # return data_functions[indicator](ticker, ticker_history, module_config)
