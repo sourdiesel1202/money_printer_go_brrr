@@ -167,7 +167,8 @@ def load_backtest_ticker_data(ticker, client, module_config):
         if module_config['logging']:
             entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
             # print(f"BACKTEST:{entry_date}: {ticker}| Open: {entry.open} High: {entry.high} Low: {entry.low} Close: {entry.close} Volume: {entry.volume}")
-        history_data.append(entry)
+        if datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour >=9 and datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour <= 16:
+            history_data.append(entry)
     return history_data
 
 def backtest_ticker(alert_types, ticker, ticker_history, module_config):
@@ -198,7 +199,7 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
             print(f"{datetime.datetime.fromtimestamp(_th[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: Processing Backtest Data")
         _alert_types = []
         for indicator, eval in alert_functions.items():
-            indicator_data = data_functions[indicator](ticker, ticker_history, module_config)
+            indicator_data = data_functions[indicator](ticker, _th, module_config)
             if eval(indicator_data, ticker, _th,module_config):
                 # print(f"{datetime.datetime.fromtimestamp(_th[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: {indicator} triggered")
                 _at = alert_type_functions[indicator](indicator_data,ticker, _th,module_config)
@@ -231,6 +232,22 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
             'splus7': ticker_history[i+6],
             'splus9': ticker_history[i+8],
         }
+        #ok so now let's do the next trading day
+        # entry_timestamp  =
+        _nti = 1
+        while True:
+            try:
+                if datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day > datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day and datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour >= 10: #last bit ensures we are looking at open data
+                    print(f"Calculated NTD for {ticker}: {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} NTD ==> {datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
+                    backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]['ntd'] = ticker_history[i+_nti]
+                    break
+                else:
+                    _nti = _nti +1
+            except:
+                traceback.print_exc()
+                print(f"Cannot calculate NTD for {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} after {_nti} periods {datetime.datetime.fromtimestamp(ticker_history[i+_nti-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
+
+                break
 
     for match_date, match_data in  backtest_results.items():
         print(f"{ticker} fired alert types ({','.join(alert_types)}) on {match_date}")
@@ -240,7 +257,7 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
     process_results_dict(backtest_results)
 def process_results_dict(backtest_results):
     #ok so here we need to generate a csv from the data here
-    rows = [['timestamp', 'splus0','splus0_delta','splus3','splus3_delta','splus5','splus5_delta', 'splus7','splus7_delta','splus9','splus9_delta']]
+    rows = [['timestamp', 'splus0','splus0_delta','splus3','splus3_delta','splus5','splus5_delta', 'splus7','splus7_delta','splus9','splus9_delta', 'ntd', 'ntd_delta']]
     for ts,data in backtest_results.items():
         try:
             row = ['' for x in rows[0]]
