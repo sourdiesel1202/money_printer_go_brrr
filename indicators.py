@@ -48,7 +48,7 @@ def load_obv(ticker, client,module_config, **kwargs):
 # def load_adx(ticker, client, **kwargs):
     # load_dmi(ticker,client,**kwargs)
 
-def load_dmi_adx(ticker, client, ticker_history, module_config, **kwargs):
+def load_dmi_adx(ticker, ticker_history, module_config, **kwargs):
     '''
     Returns a dict formatted like {'dmi+':<series_data>, 'dmi-':<series_data>, 'adx':<series_data>}
     where keys in the series are timestamps as loaded in load_ticker_history
@@ -58,12 +58,13 @@ def load_dmi_adx(ticker, client, ticker_history, module_config, **kwargs):
     :return:
     '''
 
-    print(f"{datetime.datetime.fromtimestamp(ticker_history[1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    # print(f"{datetime.datetime.fromtimestamp(ticker_history[1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
     # print(f"{datetime.datetime.fromtimestamp(ticker_history[1][-1] / 1e3, tz=ZoneInfo('US/Eastern'))} {ticker_history[1][0]}")
     df= wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     dmi= {"dmi+":df['pdi'],"dmi-":df['ndi'], "adx":df['adx']}
-    for i in reversed(range(1, len(ticker_history))):
+    for i in reversed(range(0, len(ticker_history))):
         if module_config['logging']:
+        # if True:
             pass
             print(f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} DMI+: {dmi['dmi+'][ticker_history[i].timestamp]} DMI-:{dmi['dmi-'][ticker_history[i].timestamp]} ADX: {dmi['adx'][ticker_history[i].timestamp]}")
     return dmi
@@ -97,7 +98,7 @@ def did_sma_alert(sma_data,ticker_data, ticker,module_config):
         return False
 
 
-def did_adx_alert(dmi_data,ticker_data,ticker,module_config):
+def did_adx_alert(dmi_data,ticker,ticker_data,module_config):
     '''
     Pass in the data from the client and do calculations
     :param data:
@@ -111,7 +112,7 @@ def did_adx_alert(dmi_data,ticker_data,ticker,module_config):
         return False
 
 
-def did_dmi_alert(dmi_data,ticker_data,ticker,module_config):
+def did_dmi_alert(dmi_data,ticker,ticker_data,module_config):
 
     # ok so check for dmi+ crossing over dmi- AND dmi+ over adx OR dmi- crossing over dmi+ AND dmi- over adx
     if (dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-2].timestamp] < dmi_data['dmi-'][ticker_data[-2].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] >  dmi_data['adx'][ticker_data[-1].timestamp]) or (dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-2].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] >  dmi_data['adx'][ticker_data[-1].timestamp]):
@@ -158,10 +159,10 @@ def determine_rsi_direction(data, ticker, module_config):
     else:
         raise Exception(f"Could not determine RSI Direction for {ticker}")
 
-def determine_adx_direction(data, ticker, module_config):
+def determine_adx_direction(data, ticker,ticker_data,  module_config):
     return AlertType.ADX_THRESHOLD_UPWARD
 
-def determine_dmi_direction(data, ticker_data, ticker, module_config):
+def determine_dmi_direction(data, ticker, ticker_data, module_config):
     if (data['dmi+'][ticker_data[-1].timestamp] > data['dmi-'][ticker_data[-1].timestamp] and data['dmi+'][ticker_data[-2].timestamp] < data['dmi-'][ticker_data[-2].timestamp] and data['dmi+'][ticker_data[-1].timestamp] > data['adx'][ticker_data[-1].timestamp]):
         if module_config['logging']:
             print(f"{datetime.datetime.fromtimestamp(ticker_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: DMI Alert Determined Directio: {AlertType.DMIPLUS_CROSSOVER_DMINEG} (DMI+: {data['dmi+'][ticker_data[-1].timestamp]} DMI-:{data['dmi-'][ticker_data[-1].timestamp]} ADX: {data['adx'][ticker_data[-1].timestamp]})")

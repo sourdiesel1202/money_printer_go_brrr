@@ -34,12 +34,12 @@ def process_tickers(tickers):
             if '$' in ticker:
                 continue
             print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
-            ticker_history = load_ticker_history_raw(ticker, client, 1, "hour", today, today, 500)
-            sma = load_sma(ticker, client, module_config, ticker_history, timespan="hour")
+            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'], today, today, 500)
+            sma = load_sma(ticker, client, module_config, ticker_history, timespan=module_config['timespan'])
             ticker_results[ticker]['sma'] = did_sma_alert(sma, ticker_history, "GE", module_config)
 
-            macd_data = load_macd(ticker, client, module_config, timespan="hour", )
-            dmi_adx_data = load_dmi_adx(ticker, client, ticker_history, module_config)
+            macd_data = load_macd(ticker, client, module_config, timespan=module_config['timespan'] )
+            dmi_adx_data = load_dmi_adx(ticker, ticker_history, module_config)
             rsi_data = load_rsi(ticker, client, module_config)
             ticker_results[ticker]['macd']= did_macd_alert(macd_data, ticker, module_config)
             if ticker_results[ticker]['macd']:
@@ -48,12 +48,12 @@ def process_tickers(tickers):
             ticker_results[ticker]['rsi']= did_rsi_alert(rsi_data, ticker, module_config)
             if ticker_results[ticker]['rsi']:
                 ticker_results[ticker]['directions'].append(determine_rsi_direction(rsi_data,ticker, module_config))
-            ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker_history, ticker, module_config)
+            ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker,ticker_history, module_config)
             if ticker_results[ticker]['dmi']:
-                ticker_results[ticker]['directions'].append(determine_dmi_direction(rsi_data,ticker, module_config))
-            ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data, ticker_history, ticker, module_config)
+                ticker_results[ticker]['directions'].append(determine_dmi_direction(rsi_data,ticker,ticker_history, module_config))
+            ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data,ticker, ticker_history, module_config)
             if ticker_results[ticker]['adx']:
-                ticker_results[ticker]['directions'].append(determine_adx_direction(rsi_data,ticker, module_config))
+                ticker_results[ticker]['directions'].append(determine_adx_direction(dmi_adx_data,ticker_history,ticker, module_config))
 
 
         except:

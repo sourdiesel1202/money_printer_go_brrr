@@ -1,0 +1,285 @@
+import json
+import multiprocessing
+import time,statistics
+import traceback
+
+from enums import OrderType
+import datetime,io,os
+from zoneinfo import ZoneInfo
+from functions import generate_csv_string, read_csv, write_csv, delete_csv, combine_csvs
+from history import *
+from indicators import load_dmi_adx, did_adx_alert, did_dmi_alert, determine_dmi_direction, determine_adx_direction
+import pandas as pd
+from stockstats import wrap
+from enums import *
+import polygon, datetime
+def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_config):
+    start_time = time.time()
+    print(f"Latest Ticker Entry {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    ticker_history = ticker_history[:-20]
+    print(f"Latest Ticker Entry (New) {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    # client = polygon.RESTClient(api_key=module_config['api_key'])
+    # _th = [tickers[i] for i in range(0, len(tickers))]
+    # _dispensarys = [x for x in dispensaries.keys()]
+    task_loads = [ticker_history[i:i + int(len(ticker_history)/12)+1] for i in range(0, len(ticker_history), int(len(ticker_history)/12)+1)]
+    # for k,v in dispensaries.items():
+    processes = {}
+    print(f"Processing {len(ticker_history)} in {len(task_loads)} load(s)")
+    for i in range(0, len(task_loads)):
+        print(f"Blowing {i + 1}/{len(task_loads)} Loads")
+        load = task_loads[i]
+        p = multiprocessing.Process(target=backtest_ticker, args=(alert_types,ticker,load,module_config))
+        p.start()
+
+        processes[str(p.pid)] = p
+    while any(processes[p].is_alive() for p in processes.keys()):
+        # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
+        process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
+        time_str = f"{int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds"
+        print(
+            f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
+        time.sleep(10)
+    write_csv("mpb_backtest.csv", combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()]))
+    # combined =
+def write_backtest_rawdata(lines):
+    with open(f"{os.getpid()}.dat", "w+") as f:
+        f.write('\n'.join(lines))
+def backtest_load_macd(ticker,ticker_history, module_config):
+    df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
+    return {'macd':df['macd'],'signal':df['macds'], 'histogram': df['macdh']}
+def backtest_load_rsi(ticker,ticker_history, module_config):
+    df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
+    return df['rsi']
+
+def backtest_load_sma(ticker,ticker_history, module_config):
+    df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
+    return df[f'close_{module_config["sma_window"]}_sma']
+def backtest_did_macd_alert(indicator_data,ticker,ticker_history, module_config):
+    if module_config['logging']:
+        print(f"Checking MACD Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    # print(f"{ticker_history[-1]}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {indicator_data[ticker_history[-1].timestamp]} ")
+    # if (data[0].value > data[0].signal and data[1].value < data[1].signal)  or (data[0].value < data[0].signal and data[1].value > data[1].signal):
+    if (indicator_data['macd'][ticker_history[-1].timestamp] > indicator_data['signal'][ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] < indicator_data['signal'][ticker_history[-2].timestamp]) or \
+            (indicator_data['macd'][ticker_history[-1].timestamp] < indicator_data['signal'][ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] > indicator_data['signal'][ticker_history[-2].timestamp]):
+        return True
+    else:
+        return  False
+
+
+def backtest_did_rsi_alert(indicator_data,ticker,ticker_history, module_config):
+    if module_config['logging']:
+        print(f"Checking RSI Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    if indicator_data[ticker_history[-1].timestamp] > module_config['rsi_overbought_threshold'] or indicator_data[ticker_history[-1].timestamp] < module_config['rsi_oversold_threshold']:
+        return True
+    else:
+        return False
+def backtest_did_dmi_alert(indicator_data,ticker,ticker_history, module_config):
+    if module_config['logging']:
+        print(f"Checking DMI Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    return did_dmi_alert(indicator_data, ticker_history, ticker, module_config)
+def backtest_did_adx_alert(indicator_data,ticker,ticker_history, module_config):
+    if module_config['logging']:
+        print(f"Checking ADX Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    return did_adx_alert(indicator_data, ticker_history, ticker, module_config)
+def backtest_did_sma_alert(indicator_data,ticker,ticker_history, module_config):
+    if module_config['logging']:
+        print(f"Checking SMA Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    if ((ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open) and ticker_history[-2].open < indicator_data[ticker_history[-2].timestamp]) or\
+            ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open) and ticker_history[-2].open > indicator_data[ticker_history[-2].timestamp]):
+        return True
+    else:
+        return False
+
+
+def backtest_determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config):
+    if (indicator_data['macd'][ticker_history[-1].timestamp] > indicator_data['signal'][ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] < indicator_data['signal'][ticker_history[-2].timestamp]) :
+        return AlertType.MACD_MACD_CROSS_SIGNAL
+    elif (indicator_data['macd'][ticker_history[-1].timestamp] < indicator_data['signal'][ ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] > indicator_data['signal'][ticker_history[-2].timestamp]):
+        return AlertType.MACD_SIGNAL_CROSS_MACD
+    else:
+        raise Exception("Unable to determine MACD alert type ")
+def backtest_determine_rsi_alert_type(indicator_data,ticker,ticker_history, module_config):
+    if indicator_data[ticker_history[-1].timestamp] >= module_config['rsi_overbought_threshold']:
+        if module_config['logging']:
+            entry_date = datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {indicator_data[ticker_history[-1].timestamp]} ")
+        return AlertType.RSI_OVERBOUGHT
+    elif indicator_data[ticker_history[-1].timestamp] < module_config['rsi_oversold_threshold']:
+        if module_config['logging']:
+            entry_date = datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {indicator_data[ticker_history[-1].timestamp]} ")
+        return AlertType.RSI_OVERSOLD
+    else:
+        raise Exception(f"Could not determine RSI Direction for {ticker}")
+
+
+def backtest_determine_sma_alert_type(indicator_data,ticker,ticker_history, module_config):
+    if ((ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low >
+         indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open) and
+        ticker_history[-2].open < indicator_data[ticker_history[-2].timestamp]):
+        return AlertType.SMA_CROSSOVER_UPWARD
+    elif ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high <
+      indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open) and
+     ticker_history[-2].open > indicator_data[ticker_history[-2].timestamp]):
+        return AlertType.SMA_CROSSOVER_DOWNWARD
+    else:
+        raise Exception(f"Could not determine SMA Direction for {ticker}")
+
+
+data_functions = {
+    "macd": backtest_load_macd,
+    "rsi": backtest_load_rsi,
+    "dmi": load_dmi_adx,
+    "adx": load_dmi_adx,
+    "sma": backtest_load_sma
+}
+
+alert_functions = {
+    "macd": backtest_did_macd_alert,
+    "rsi": backtest_did_rsi_alert,
+    "dmi": did_dmi_alert,
+    "adx": did_adx_alert,
+    "sma": backtest_did_sma_alert
+}
+
+# alert_type_functions = {
+alert_type_functions = {
+    "macd": backtest_determine_macd_alert_type,
+    "rsi": backtest_determine_rsi_alert_type,
+    "dmi": determine_dmi_direction,
+    "adx": determine_adx_direction,
+    "sma": backtest_determine_sma_alert_type
+
+}
+def generate_polygon_date_str(days_ago):
+    if days_ago==0:
+        new_date = datetime.datetime.now()
+    else:
+        new_date = datetime.datetime.now()-datetime.timedelta(days=days_ago)
+    # print(new_date.strftime("%Y-%m-%d"))
+    return new_date.strftime("%Y-%m-%d")
+def load_backtest_ticker_data(ticker, client, module_config):
+    history_data = []
+    for entry in client.list_aggs(ticker=ticker, multiplier=1, timespan=module_config['timespan'], from_=generate_polygon_date_str(module_config['backtest_days']), to=generate_polygon_date_str(0),
+                                  limit=50000, sort='asc'):
+        if module_config['logging']:
+            entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            # print(f"BACKTEST:{entry_date}: {ticker}| Open: {entry.open} High: {entry.high} Low: {entry.low} Close: {entry.close} Volume: {entry.volume}")
+        history_data.append(entry)
+    return history_data
+
+def backtest_ticker(alert_types, ticker, ticker_history, module_config):
+    #ok so the idea here is to find each time in history where the alert type(s) fired on the ticker
+    #once we find one, we add it to a result dictionary, structure listed below
+    # {
+    #     "timestamp":{
+    #         "splus0": "", #agg bar at time of alert
+    #         "splus3": "", #agg bar at time of alert +2
+    #         "splus5": "", #agg bar at time of alert+4
+    #         "splus7": "", ##agg bar at time of alert+6
+    #         "splus9":"" #agg bar at time of alert+8
+    #     }
+    # }
+
+    # once we have results, we can calculate our averages
+    #turn off logging
+    module_config['logging'] = False
+    print(f"Oldest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    print(f"Newest Data for {ticker}:{datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    if len(ticker_history) < 20:
+        raise Exception(f"Cannot backtest ticker with {len(ticker_history)} history records, need at least 20")
+
+    backtest_results = {}
+    # start ten bars in the past so we can do our forward looking
+    for i in reversed(range(10, len(ticker_history)-10)):
+        _th  = ticker_history[:i] #basically the idea here is that we work backwards in time, calculating alerts and alert types at each increment
+        #if the increment alert types match the input alert types, we write a result entry for ti
+        print(f"{datetime.datetime.fromtimestamp(_th[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: Processing Backtest Data")
+        _alert_types = []
+        for indicator, eval in alert_functions.items():
+            indicator_data = data_functions[indicator](ticker, ticker_history, module_config)
+            if eval(indicator_data, ticker, _th,module_config):
+                print(f"{datetime.datetime.fromtimestamp(_th[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: {indicator} triggered")
+                _at = alert_type_functions[indicator](indicator_data,ticker, _th,module_config)
+                if _at != None:
+                    _alert_types.append(_at)
+
+        #ok so now that we have our alert types for this timebar, check to see if they match the input alert types
+        # if not, we will just ignore them
+        ignore = False
+        for alert_type in alert_types:
+            if alert_type not in _alert_types:
+                ignore = True
+                break
+        if ignore or len(alert_types) != len(_alert_types):
+            continue
+
+        #ok now we can generate our results for the moment
+        #     "timestamp":{
+        #         "splus0": "", #agg bar at time of alert
+        #         "splus3": "", #agg bar at time of alert +2
+        #         "splus5": "", #agg bar at time of alert+4
+        #         "splus7": "", ##agg bar at time of alert+6
+        #         "splus9":"" #agg bar at time of alert+8
+        #     }
+        # }
+        backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"] = {
+            'splus0':ticker_history[i],
+            'splus3': ticker_history[i+2],
+            'splus5': ticker_history[i+4],
+            'splus7': ticker_history[i+6],
+            'splus9': ticker_history[i+8],
+        }
+
+    for match_date, match_data in  backtest_results.items():
+        print(f"{ticker} fired alert types ({','.join(alert_types)}) on {match_date}")
+        _result_string = ""
+        for _type, _values in match_data.items():
+            print(f"{_result_string} {_type}|O:{_values.open}|H:{_values.high}|L:{_values.low}|C:{_values.close}| O|C Delta between {_type} and splus0: {float(_values.open)-float(match_data['splus0'].open)}|{float(_values.close)-float(match_data['splus0'].close)}")
+    process_results_dict(backtest_results)
+def process_results_dict(backtest_results):
+    #ok so here we need to generate a csv from the data here
+    rows = [['timestamp', 'splus0','splus0_delta','splus3','splus3_delta','splus5','splus5_delta', 'splus7','splus7_delta','splus9','splus9_delta']]
+    for ts,data in backtest_results.items():
+        try:
+            row = ['' for x in rows[0]]
+            row[rows[0].index('timestamp')]= ts
+            highs = []
+            lows = []
+            deltas = []
+            for k, v in data.items():
+
+                highs.append(float(v.high)-float(data['splus0'].close))
+                lows.append(float(v.low)-float(data['splus0'].close))
+                deltas.append(float(v.close)-float(data['splus0'].close))
+                if k == 'splus0':
+                    del lows[-1]
+                    del deltas[-1]
+                    del highs[-1]
+                # if k == 'splus0':
+                #     del lows[-1]
+                #     del deltas[-1]
+                #     del highs[-1]
+                row[rows[0].index(k)] =f"|O:{v.open}|H:{v.high}|L:{v.low}|C:{v.close}|"
+                key = f"{k}_delta"
+                print(f"{os.getpid()} Keys: {json.dumps(rows[0])} key:{key}")
+                _index = rows[0].index(key)
+                row[_index] =float(v.close)-float(data['splus0'].close)
+
+            row.append(statistics.fmean(deltas)) #average delta
+            row.append(max(highs)) #max high delta
+            row.append(min(lows)) #min low delta
+            rows.append(row)
+        except:
+            print(f"Unable to process result entry at {ts}")
+            traceback.print_exc()
+    rows[0].append('average_delta')
+    rows[0].append('average_high_delta')
+    rows[0].append('average_low_delta')
+    write_csv(f"{os.getpid()}backtest.csv", rows)
+# def load_backtest_indicator(indicator, ticker, ticker_history, module_config):
+    # print(f"{datetime.datetime.fromtimestamp(ticker_history[1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
+    # print(f"{datetime.datetime.fromtimestamp(ticker_history[1][-1] / 1e3, tz=ZoneInfo('US/Eastern'))} {ticker_history[1][0]}")
+    # df= wrap(load_ticker_history_pd_frame(ticker, ticker_history))
+    # indicator_data = df[indicator]
+    # return data_functions[indicator](ticker, ticker_history, module_config)
