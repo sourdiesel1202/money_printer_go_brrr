@@ -1,5 +1,6 @@
 import json
 import multiprocessing
+import operator
 import time,statistics
 import traceback
 
@@ -41,7 +42,16 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
         print(
             f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
         time.sleep(10)
-    write_csv(f"{ticker}_backtest.csv", combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()]))
+    # write_csv(f"{ticker}_backtest.csv", combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()]))
+    combined = combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()])
+    header = combined[0]
+    del combined[0]
+    # sorted(combined, key=lambda x: int(x[-2]))
+    combined.sort(key=operator.itemgetter(header.index("timestamp")))
+    combined.reverse()
+    # results.reverse()
+    combined.insert(0, header)
+    write_csv(f"{ticker}_backtest.csv", combined)
     # combined =
 def write_backtest_rawdata(lines):
     with open(f"{os.getpid()}.dat", "w+") as f:
@@ -321,9 +331,9 @@ def process_results_dict(backtest_results):
 def load_backtest_results(ticker):
     #
     data =  read_csv(f"{ticker}_backtest.csv")
-    json_data = {k:[] for k in data[0][1:]}
+    json_data = {k:[] for k in data[0]}
     for i in range(1, len(data)):
-        for ii in range(1, len(data[0])):
+        for ii in range(0, len(data[0])):
             try:
                 json_data[data[0][ii]].append(float(data[i][ii]))
             except:
