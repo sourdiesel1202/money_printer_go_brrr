@@ -309,9 +309,11 @@ def process_results_dict(backtest_results):
             row.append(statistics.fmean(deltas)) #average delta
             row.append(statistics.fmean(highs)) #average high delta
             row.append(max(highs)) #max high
+            row.append(max(highs) - float(data['splus0'].close)) #max high delta
             row.append(calculate_percentage(max(highs),float(data['splus0'].close))) #max high percentage
             row.append(statistics.fmean(lows)) #average low delta
             row.append(min(lows)) #min low
+            row.append(min(lows) - float(data['splus0'].close))  # min low delta
             row.append(calculate_percentage(min(lows),float(data['splus0'].close))) #min low percentage
             rows.append(row)
         except:
@@ -321,9 +323,11 @@ def process_results_dict(backtest_results):
     rows[0].append('total_delta_percentage')
     rows[0].append('average_delta')
     rows[0].append('average_high_delta')
+    rows[0].append('max_high')
     rows[0].append('max_high_delta')
     rows[0].append('max_high_delta_percentage')
     rows[0].append('average_low_delta')
+    rows[0].append('min_low')
     rows[0].append('min_low_delta')
     rows[0].append('min_low_delta_percentage')
     write_csv(f"{os.getpid()}backtest.csv", rows)
