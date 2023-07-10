@@ -235,14 +235,23 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
         #ok so now let's do the next trading day
         # entry_timestamp  =
         _nti = 1
-        while True:
+        ntd_calculated = False
+        while not ntd_calculated:
             try:
-                if datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day > datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day and datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour >= 10: #last bit ensures we are looking at open data
-                    print(f"Calculated NTD for {ticker}: {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} NTD ==> {datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
-                    backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]['ntd'] = ticker_history[i+_nti]
-                    break
+                if datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day > datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day and datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour == 10 and 'ntdo' not in backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]: #last bit ensures we are looking at open data
+                    print(f"Calculated NTDO for {ticker}: {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} NTD ==> {datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
+                    backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]['ntdo'] = ticker_history[i+_nti]
+                    # break
+                elif datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day > datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day and datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour == 16 and 'ntdc' not in backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]: #last bit ensures we are looking at open data
+                    print(
+                        f"Calculated NTDC for {ticker}: {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} NTD ==> {datetime.datetime.fromtimestamp(ticker_history[i + _nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
+                    backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]['ntdc'] = ticker_history[i + _nti]
+                    # break
                 else:
                     _nti = _nti +1
+                ntd_calculated = 'ntdo' in backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"] and 'ntdc' in backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]
+                if ntd_calculated:
+                    print("Finished calculating NTD/C|O")
             except:
                 traceback.print_exc()
                 print(f"Cannot calculate NTD for {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} after {_nti} periods {datetime.datetime.fromtimestamp(ticker_history[i+_nti-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
@@ -257,7 +266,7 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
     process_results_dict(backtest_results)
 def process_results_dict(backtest_results):
     #ok so here we need to generate a csv from the data here
-    rows = [['timestamp', 'splus0','splus0_delta','splus3','splus3_delta','splus5','splus5_delta', 'splus7','splus7_delta','splus9','splus9_delta', 'ntd', 'ntd_delta']]
+    rows = [['timestamp', 'splus0','splus0_delta','splus0_delta_percentage','splus3','splus3_delta','splus3_delta_percentage','splus5','splus5_delta','splus5_delta_percentage' ,'splus7','splus7_delta','splus7_delta_percentage','splus9','splus9_delta','splus9_delta_percentage', 'ntdo', 'ntdo_delta','ntdo_delta_percentage', 'ntdc', 'ntdc_delta', 'ntdc_delta_percentage']]
     for ts,data in backtest_results.items():
         try:
             row = ['' for x in rows[0]]
@@ -276,10 +285,13 @@ def process_results_dict(backtest_results):
                     del highs[-1]
 
                 row[rows[0].index(k)] =f"|O:{v.open}|H:{v.high}|L:{v.low}|C:{v.close}|"
-                key = f"{k}_delta"
+                delta_key = f"{k}_delta"
+                percentage_key = f"{k}_delta_percentage"
                 # print(f"{os.getpid()} Keys: {json.dumps(rows[0])} key:{key}")
-                _index = rows[0].index(key)
-                row[_index] =float(v.close)-float(data['splus0'].close)
+                _delta_index = rows[0].index(delta_key)
+                _percentage_index = rows[0].index(percentage_key)
+                row[_delta_index] =float(v.close)-float(data['splus0'].close)
+                row[_percentage_index] =calculate_percentage(float(v.close)-float(data['splus0'].close),data['splus0'].close)
 
             row.append(float(data['splus9'].close)-float(data['splus0'].close)) #Total delta
             row.append(calculate_percentage(float(data['splus9'].close)-float(data['splus0'].close),float(data['splus0'].close))) #Total delta percentage
