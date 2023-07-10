@@ -50,4 +50,7 @@ def get_today(module_config):
     else:
         return datetime.datetime.now().strftime("%Y-%m-%d")
 def calculate_percentage(x, y):
-    return (float(x)/float(y))*100.00
+    try:
+        return (float(x)/float(y))*100.00
+    except:
+        return 0.0

@@ -122,7 +122,7 @@ def find_tickers():
             _new_tickers.append(_ticker)
     _tickers = _new_tickers
     # _dispensarys = [x for x in dispensaries.keys()]
-    task_loads = [_tickers[i:i + int(n/12)+1] for i in range(0, len(_tickers), int(n/12)+1)]
+    task_loads = [_tickers[i:i + int(len(_tickers)/12)+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
     # for k,v in dispensaries.items():
     processes = {}
     print(f"Processing {len(tickers)} in {len(task_loads)} load(s)")
