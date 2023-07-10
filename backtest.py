@@ -255,7 +255,8 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
             except:
                 traceback.print_exc()
                 print(f"Cannot calculate NTD for {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} after {_nti} periods {datetime.datetime.fromtimestamp(ticker_history[i+_nti-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
-
+                del backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]
+                #ok so if e
                 break
 
     for match_date, match_data in  backtest_results.items():
