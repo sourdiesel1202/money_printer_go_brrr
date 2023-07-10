@@ -93,7 +93,7 @@ def process_tickers(tickers):
             results[-1].append(','.join(matched_conditions))
             results[-1].append(','.join(v['directions']))
             ##here do backtest
-            if len(matched_conditions) >= module_config['backtest_alert_count']:
+            if len(matched_conditions) >= module_config['backtest_alert_count'] and module_config['backtest']:
                 try:
                     results[-1].append(True)
                     # if module_config['logging']:

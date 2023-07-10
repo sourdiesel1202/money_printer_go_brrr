@@ -53,6 +53,13 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
     # results.reverse()
     combined.insert(0, header)
     write_csv(f"data/backtests/{ticker}_backtest.csv", combined)
+    backtest_results = analyze_backtest_results(load_backtest_results(ticker))
+    result_rows = [analyzed_backtest_keys]
+    new_row = []
+    for k in analyzed_backtest_keys:
+         new_row.append(backtest_results[k])
+    result_rows.append(new_row)
+    write_csv(f"data/backtests/{ticker}_backtest_analyzed.csv", result_rows)
     # combined =
 def write_backtest_rawdata(lines):
     with open(f"{os.getpid()}.dat", "w+") as f:
