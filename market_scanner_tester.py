@@ -13,15 +13,12 @@ from indicators import determine_rsi_direction, determine_macd_direction,determi
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
 from functions import  load_module_config, read_csv, write_csv,combine_csvs, get_today
 module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
-from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results,analyze_backtest_results, analyzed_backtest_keys
+from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 today =get_today(module_config)
 required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
-    _report_headers = ['symbol', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
-    for k in analyzed_backtest_keys:
-        _report_headers.append(k)
     # ticker = "GE"
     # data_lines = read_csv("data/nyse.csv")
     # if module_config['logging']:
@@ -32,14 +29,12 @@ def process_tickers(tickers):
         # for ticker in module_config['tickers']:
         #     ticker = module_config['tickers'][i]
         ticker = tickers[i]
-        if '$' in ticker:
-            continue
-        ticker_results[ticker] = {'directions': []}
         try:
 
+            ticker_results[ticker] = {'directions':[]}
 
-
-
+            if '$' in ticker:
+                continue
             print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
             ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'], today, today, 500)
             sma = load_sma(ticker, client, module_config, ticker_history, timespan=module_config['timespan'])
@@ -66,7 +61,6 @@ def process_tickers(tickers):
         except:
             traceback.print_exc()
             print(f"Cannot process ticker: {ticker}")
-            del ticker_results[ticker]
     # results = [['symbol','macd_flag', 'rsi_flag', 'sma_flag', 'pick_level', 'conditions_matched']]
     results = []
     for k, v in ticker_results.items():
@@ -78,7 +72,6 @@ def process_tickers(tickers):
             if module_config['logging']:
                 print(f"{k} is missing a required config: Found {[x for x in v.keys()]} Required: {required_indicators}")
             continue
-
         try:
             cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi'], 'adx': v['adx']}
             results.append([k, cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx']])
@@ -92,26 +85,8 @@ def process_tickers(tickers):
             results[-1].append(len(matched_conditions))
             results[-1].append(','.join(matched_conditions))
             results[-1].append(','.join(v['directions']))
-            ##here do backtest
             if len(matched_conditions) >= module_config['backtest_alert_count']:
-                try:
-                    results[-1].append(True)
-                    # if module_config['logging']:
-                    print(f"Ticker {k} alerted {','.join(v['directions'])}, running backtest for {module_config['backtest_days']} days")
-                    backtest_ticker_concurrently(v['directions'], k,load_backtest_ticker_data(ticker,client, module_config),module_config)
-                    backtest_results = analyze_backtest_results(load_backtest_results(ticker))
-                    for _backtest_key in analyzed_backtest_keys:
-                        for i in range(_report_headers.index('backtested')+1, len(_report_headers)):
-                            print(f"Report_headers {_report_headers[i]}")
-                            results[-1].append(backtest_results[_report_headers[i]])
-                except:
-                    results[-1].append(False)
-                    traceback.print_exc()
-                    print(f"Could not backtest ticker {ticker}")
-            else:
-                results[-1].append(False)
-                for _k in analyzed_backtest_keys:
-                    results[-1].append('')
+                pass
         except:
             print(f"Cannot process results for ticker {k}")
             traceback.print_exc()
@@ -119,7 +94,7 @@ def process_tickers(tickers):
     # results.sort(key=lambda x:int(x[-2]))
     # sorted(results, key=lambda x: x[-2])
     # results.reverse()
-    results.insert(0,_report_headers  )
+    results.insert(0,['symbol','macd_flag', 'rsi_flag', 'sma_flag','dmi_flag', 'adx_flag','pick_level', 'conditions_matched', 'reasons'] )
     # new_results = reversed(list(sorted(results, key=lambda x: x[-2])))
     # new
     write_csv(f"{os.getpid()}.csv", results)
@@ -128,16 +103,10 @@ def find_tickers():
     # tickers = read_csv("data/nyse.csv")
     # tickers = module_config['tickers']
     tickers = read_csv("data/nyse.csv")
-
     del tickers[0]
     if module_config['test_mode']:
         tickers = tickers[:module_config['test_population_size']]
     _tickers = [tickers[i][0] for i in range(0, len(tickers))]
-    _new_tickers = []
-    for _ticker in _tickers:
-        if '$' not in _ticker:
-            _new_tickers.append(_ticker)
-    _tickers = _new_tickers
     # _dispensarys = [x for x in dispensaries.keys()]
     task_loads = [_tickers[i:i + int(n/12)+1] for i in range(0, len(_tickers), int(n/12)+1)]
     # for k,v in dispensaries.items():

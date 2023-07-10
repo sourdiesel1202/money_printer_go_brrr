@@ -3,7 +3,7 @@ import multiprocessing
 import operator
 import time,statistics
 import traceback
-
+import numpy as np
 from enums import OrderType
 import datetime,io,os
 from zoneinfo import ZoneInfo
@@ -14,6 +14,7 @@ import pandas as pd
 from stockstats import wrap
 from enums import *
 import polygon, datetime
+analyzed_backtest_keys = ['likelihood_long_3','likelihood_short_3','likelihood_long_5','likelihood_short_5','likelihood_long_7','likelihood_short_7','likelihood_long_9','likelihood_short_9','likelihood_long_ntdo','likelihood_short_ntdo','likelihood_long_ntdc','likelihood_short_ntdc','average_price_increase_percentage','average_price_decrease_percentage']
 def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_config):
     start_time = time.time()
 
@@ -43,7 +44,7 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
             f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
         time.sleep(10)
     # write_csv(f"{ticker}_backtest.csv", combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()]))
-    combined = combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()])
+    combined = combine_csvs([f"data/backtests/{x.pid}backtest.csv" for x in processes.values()])
     header = combined[0]
     del combined[0]
     # sorted(combined, key=lambda x: int(x[-2]))
@@ -51,7 +52,7 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
     combined.reverse()
     # results.reverse()
     combined.insert(0, header)
-    write_csv(f"{ticker}_backtest.csv", combined)
+    write_csv(f"data/backtests/{ticker}_backtest.csv", combined)
     # combined =
 def write_backtest_rawdata(lines):
     with open(f"{os.getpid()}.dat", "w+") as f:
@@ -170,10 +171,12 @@ def generate_polygon_date_str(days_ago):
         new_date = datetime.datetime.now()-datetime.timedelta(days=days_ago)
     # print(new_date.strftime("%Y-%m-%d"))
     return new_date.strftime("%Y-%m-%d")
-def load_backtest_ticker_data(ticker, client, module_config):
+def load_backtest_ticker_data(ticker, client,module_config):
+    # client = polygon.RESTClient(api_key=module_config['api_key'])
     history_data = []
+    # for entry in client.list_aggs(ticker=ticker, multiplier=multiplier, timespan=timespan, from_=from_, to=to,limit=limit, sort='asc'):
     for entry in client.list_aggs(ticker=ticker, multiplier=1, timespan=module_config['timespan'], from_=generate_polygon_date_str(module_config['backtest_days']), to=generate_polygon_date_str(0),
-                                  limit=50000, sort='asc'):
+                                  sort='asc'):
         if module_config['logging']:
             entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
             # print(f"BACKTEST:{entry_date}: {ticker}| Open: {entry.open} High: {entry.high} Low: {entry.low} Close: {entry.close} Volume: {entry.volume}")
@@ -330,11 +333,11 @@ def process_results_dict(backtest_results):
     rows[0].append('min_low')
     rows[0].append('min_low_delta')
     rows[0].append('min_low_delta_percentage')
-    write_csv(f"{os.getpid()}backtest.csv", rows)
+    write_csv(f"data/backtests/{os.getpid()}backtest.csv", rows)
 
 def load_backtest_results(ticker):
     #
-    data =  read_csv(f"{ticker}_backtest.csv")
+    data =  read_csv(f"data/backtests/{ticker}_backtest.csv")
     json_data = {k:[] for k in data[0]}
     for i in range(1, len(data)):
         for ii in range(0, len(data[0])):
@@ -344,4 +347,41 @@ def load_backtest_results(ticker):
                 json_data[data[0][ii]].append(data[i][ii])
 
     return json_data
+def analyze_backtest_results(backtest_results):
+    #pass
+    #ok so here we are, 2 nights worth of coding to get to THESE calculations
+    #first, do likelihood of long vs short
+    processed_results ={}
+    len(np.where(np.array(backtest_results['total_delta']) < 0)[0])
+    len(np.where(np.array(backtest_results['total_delta']) > 0)[0])
+    processed_results['likelihood_long_3'] = calculate_percentage(len(np.where(np.array(backtest_results['splus3_delta']) > 0)[0]), len(backtest_results['splus3_delta']))
+    processed_results['likelihood_short_3'] =calculate_percentage(len(np.where(np.array(backtest_results['splus3_delta']) < 0)[0]), len(backtest_results['splus3_delta']))
+    processed_results['likelihood_long_5'] = calculate_percentage(len(np.where(np.array(backtest_results['splus5_delta']) > 0)[0]), len(backtest_results['splus5_delta']))
+    processed_results['likelihood_short_5'] =calculate_percentage(len(np.where(np.array(backtest_results['splus5_delta']) < 0)[0]), len(backtest_results['splus5_delta']))
+    processed_results['likelihood_long_7'] = calculate_percentage(len(np.where(np.array(backtest_results['splus7_delta']) > 0)[0]), len(backtest_results['splus7_delta']))
+    processed_results['likelihood_short_7'] =calculate_percentage(len(np.where(np.array(backtest_results['splus3_delta']) < 0)[0]), len(backtest_results['splus3_delta']))
+    processed_results['likelihood_long_9'] = calculate_percentage(len(np.where(np.array(backtest_results['splus9_delta']) > 0)[0]), len(backtest_results['splus9_delta']))
+    processed_results['likelihood_short_9'] = calculate_percentage(len(np.where(np.array(backtest_results['splus9_delta']) < 0)[0]), len(backtest_results['splus9_delta']))
+    processed_results['likelihood_long_ntdo'] = calculate_percentage(len(np.where(np.array(backtest_results['ntdo_delta']) > 0)[0]), len(backtest_results['ntdo_delta']))
+    processed_results['likelihood_short_ntdo'] = calculate_percentage(len(np.where(np.array(backtest_results['ntdo_delta']) < 0)[0]), len(backtest_results['ntdo_delta']))
+    processed_results['likelihood_long_ntdc'] = calculate_percentage(len(np.where(np.array(backtest_results['ntdc_delta']) > 0)[0]), len(backtest_results['ntdc_delta']))
+    processed_results['likelihood_short_ntdc'] = calculate_percentage(len(np.where(np.array(backtest_results['ntdc_delta']) < 0)[0]), len(backtest_results['ntdc_delta']))
+    processed_results['average_price_increase_percentage'] =  statistics.fmean(backtest_results['average_high_delta'])
+    processed_results['average_price_decrease_percentage'] = statistics.fmean(backtest_results['average_low_delta'])
+    return processed_results
+    # processed_results['likelihood_long_3']
+    # processed_results['likelihood_short_3']
+    # processed_results['likelihood_long_5']
+    # processed_results['likelihood_short_5']
+    # processed_results['likelihood_long_7']
+    # processed_results['likelihood_short_7']
+    # processed_results['likelihood_long_9']
+    # processed_results['likelihood_short_9']
+    # processed_results['likelihood_long_ntdo']
+    # processed_results['likelihood_short_ntdo']
+    # processed_results['likelihood_long_ntdc']
+    # processed_results['likelihood_short_ntdc']
+    # processed_results['average_price_increase_percentage']
+    # processed_results['average_price_decrease_percentage']
+    pass
 

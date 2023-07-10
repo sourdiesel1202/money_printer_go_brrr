@@ -151,7 +151,7 @@ def determine_rsi_direction(data, ticker, module_config):
             entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
             print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {data[0].value} ")
         return AlertType.RSI_OVERBOUGHT
-    elif data[0].value > module_config['rsi_oversold_threshold']:
+    elif data[0].value < module_config['rsi_oversold_threshold']:
         if module_config['logging']:
             entry_date = datetime.datetime.fromtimestamp(data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
             print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {data[0].value} ")
