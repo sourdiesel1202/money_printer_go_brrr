@@ -92,26 +92,10 @@ def process_tickers(tickers):
             results[-1].append(len(matched_conditions))
             results[-1].append(','.join(matched_conditions))
             results[-1].append(','.join(v['directions']))
-            ##here do backtest
-            if len(matched_conditions) >= module_config['backtest_alert_count'] and module_config['backtest']:
-                try:
-                    results[-1].append(True)
-                    # if module_config['logging']:
-                    print(f"Ticker {k} alerted {','.join(v['directions'])}, running backtest for {module_config['backtest_days']} days")
-                    backtest_ticker_concurrently(v['directions'], k,load_backtest_ticker_data(ticker,client, module_config),module_config)
-                    backtest_results = analyze_backtest_results(load_backtest_results(ticker))
-                    for _backtest_key in analyzed_backtest_keys:
-                        for i in range(_report_headers.index('backtested')+1, len(_report_headers)):
-                            print(f"Report_headers {_report_headers[i]}")
-                            results[-1].append(backtest_results[_report_headers[i]])
-                except:
-                    results[-1].append(False)
-                    traceback.print_exc()
-                    print(f"Could not backtest ticker {ticker}")
-            else:
-                results[-1].append(False)
-                for _k in analyzed_backtest_keys:
-                    results[-1].append('')
+            ##stub in backtest entries
+            results[-1].append(False)
+            for _k in analyzed_backtest_keys:
+                results[-1].append('')
         except:
             print(f"Cannot process results for ticker {k}")
             traceback.print_exc()
@@ -125,9 +109,8 @@ def process_tickers(tickers):
     write_csv(f"{os.getpid()}.csv", results)
 def find_tickers():
     n = module_config['process_load_size']
-    # tickers = read_csv("data/nyse.csv")
-    # tickers = module_config['tickers']
     tickers = read_csv("data/nyse.csv")
+    client = polygon.RESTClient(api_key=module_config['api_key'])
 
     del tickers[0]
     if module_config['test_mode']:
@@ -168,6 +151,29 @@ def find_tickers():
     # results.reverse()
     combined.insert(0, header)
     write_csv("mpb.csv", combined)
+    print("##############\nRunning Market Scanner Backtest\n##############")
+
+    for i in range(1, len(combined)):
+        if int(combined[i][combined[0].index('pick_level')]) == module_config['backtest_alert_count']:
+            try:
+                combined[i][combined[0].index('backtested')] = True
+                # if module_config['logging']:
+                print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('reasons')].split(','))}, running backtest for {module_config['backtest_days']} days")
+                backtest_ticker_concurrently(combined[i][combined[0].index('reasons')].split(','), combined[i][combined[0].index('symbol')],
+                                             load_backtest_ticker_data(combined[i][combined[0].index('symbol')], client, module_config), module_config)
+                backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')]))
+                for _backtest_key in analyzed_backtest_keys:
+                # for ii in range(combined[0].index('backtested') + 1, len(combined[0])):
+                        # print(f"Report_headers {_report_headers[i]}")
+                    combined[i][combined[0].index(_backtest_key)] = backtest_results[_backtest_key]
+            except:
+                combined[i][combined[0].index('backtested')] = False
+                traceback.print_exc()
+                print(f"Could not backtest ticker {combined[i][0]}")
+    write_csv("mpb_backtested.csv", combined)
+
+    #ok so once we are here, let's go ahead and find the tickers that we need to backtest and run int
+
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
     print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
