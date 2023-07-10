@@ -287,8 +287,8 @@ def process_results_dict(backtest_results):
             deltas = []
             for k, v in data.items():
 
-                highs.append(float(v.high)-float(data['splus0'].close))
-                lows.append(float(v.low)-float(data['splus0'].close))
+                highs.append(float(v.high))
+                lows.append(float(v.low))
                 deltas.append(float(v.close)-float(data['splus0'].close))
                 if k == 'splus0':
                     del lows[-1]
@@ -310,11 +310,11 @@ def process_results_dict(backtest_results):
             row.append(statistics.fmean(highs)) #average high delta
             row.append(max(highs)) #max high
             row.append(max(highs) - float(data['splus0'].close)) #max high delta
-            row.append(calculate_percentage(max(highs),float(data['splus0'].close))) #max high percentage
+            row.append(calculate_percentage(max(highs) - float(data['splus0'].close),float(data['splus0'].close))) #max high percentag
             row.append(statistics.fmean(lows)) #average low delta
             row.append(min(lows)) #min low
             row.append(min(lows) - float(data['splus0'].close))  # min low delta
-            row.append(calculate_percentage(min(lows),float(data['splus0'].close))) #min low percentage
+            row.append(calculate_percentage(min(lows) - float(data['splus0'].close),float(data['splus0'].close))) #min low percentage
             rows.append(row)
         except:
             print(f"Unable to process result entry at {ts}")
