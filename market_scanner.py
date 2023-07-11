@@ -2,6 +2,7 @@
 import os, operator
 import traceback
 import multiprocessing
+from notification import send_email, generate_mpd_html_table
 # Press ⇧F10 to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
 # from polygon import RESTClient,
@@ -12,6 +13,7 @@ from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_ale
 from indicators import determine_rsi_direction, determine_macd_direction,determine_adx_direction,determine_dmi_direction
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
 from functions import  load_module_config, read_csv, write_csv,combine_csvs, get_today
+# module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results,analyze_backtest_results, analyzed_backtest_keys
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
@@ -19,14 +21,15 @@ today =get_today(module_config)
 required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
-    _report_headers = ['symbol', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
+    _report_headers = ['timestamp','symbol', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
     for k in analyzed_backtest_keys:
         _report_headers.append(k)
     # ticker = "GE"
-    # data_lines = read_csv("data/nyse.csv")
+    # data_lines = read_csv(f"data/nyse.csv")
     # if module_config['logging']:
     # print(f"Loaded {len(data_lines) - 1} tickers on NYSE")
     ticker_results = {}
+    latest_entry = ""
     for i in range(0, len(tickers)):
         # for i in range(1, len(module_config['tickers'])):
         # for ticker in module_config['tickers']:
@@ -42,6 +45,8 @@ def process_tickers(tickers):
 
             print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
             ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'], today, today, 500)
+            if latest_entry == "":
+                latest_entry = ticker_history[-1].timestamp
             sma = load_sma(ticker, client, module_config, ticker_history, timespan=module_config['timespan'])
             ticker_results[ticker]['sma'] = did_sma_alert(sma, ticker_history, "GE", module_config)
 
@@ -81,21 +86,21 @@ def process_tickers(tickers):
 
         try:
             cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi'], 'adx': v['adx']}
-            results.append([k, cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx']])
-            # basis = []
-            # if cond_dict['rsi']:
-            #     determine_rsi_direction()
             matched_conditions = []
             for kk, vv in cond_dict.items():
                 if vv:
                     matched_conditions.append(kk)
-            results[-1].append(len(matched_conditions))
-            results[-1].append(','.join(matched_conditions))
-            results[-1].append(','.join(v['directions']))
-            ##stub in backtest entries
-            results[-1].append(False)
-            for _k in analyzed_backtest_keys:
-                results[-1].append('')
+            if len(matched_conditions) >= module_config['report_alert_min']:
+
+
+                results.append([datetime.datetime.fromtimestamp(latest_entry / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S"),k, cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx']])
+                results[-1].append(len(matched_conditions))
+                results[-1].append(','.join(matched_conditions))
+                results[-1].append(','.join(v['directions']))
+                ##stub in backtest entries
+                results[-1].append(False)
+                for _k in analyzed_backtest_keys:
+                    results[-1].append('')
         except:
             print(f"Cannot process results for ticker {k}")
             traceback.print_exc()
@@ -106,15 +111,18 @@ def process_tickers(tickers):
     results.insert(0,_report_headers  )
     # new_results = reversed(list(sorted(results, key=lambda x: x[-2])))
     # new
-    write_csv(f"{os.getpid()}.csv", results)
+    write_csv(f"{module_config['output_dir']}{os.getpid()}.csv", results)
 def find_tickers():
+    start_time = time.time()
     n = module_config['process_load_size']
-    tickers = read_csv("data/nyse.csv")
+    tickers = read_csv(f"data/nyse.csv")
     client = polygon.RESTClient(api_key=module_config['api_key'])
 
     del tickers[0]
     if module_config['test_mode']:
-        tickers = tickers[:module_config['test_population_size']]
+        pass
+        # tickers = tickers[:module_config['test_population_size']]
+        # tickers = tickers[:module_config['test_population_size']]
     _tickers = [tickers[i][0] for i in range(0, len(tickers))]
     _new_tickers = []
     for _ticker in _tickers:
@@ -142,7 +150,7 @@ def find_tickers():
         time.sleep(10)
 
     print(f"All loads have been blown, generating your report")
-    combined = combine_csvs([f"{x.pid}.csv" for x in processes.values()])
+    combined = combine_csvs([f"{module_config['output_dir']}{x.pid}.csv" for x in processes.values()])
     header = combined[0]
     del combined[0]
     # sorted(combined, key=lambda x: int(x[-2]))
@@ -150,28 +158,38 @@ def find_tickers():
     combined.reverse()
     # results.reverse()
     combined.insert(0, header)
-    write_csv("mpb.csv", combined)
-    print("##############\nRunning Market Scanner Backtest\n##############")
+    try:
+        write_csv("mpb.csv", combined)
+    except:
+        print(f"cannot write file")
+    results = {"mpb": combined, "mpb_backtested":None}
+    if module_config['backtest']:
+        print("##############\nRunning Market Scanner Backtest\n##############")
 
-    for i in range(1, len(combined)):
-        if int(combined[i][combined[0].index('pick_level')]) == module_config['backtest_alert_count']:
-            try:
-                combined[i][combined[0].index('backtested')] = True
-                # if module_config['logging']:
-                print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('reasons')].split(','))}, running backtest for {module_config['backtest_days']} days")
-                backtest_ticker_concurrently(combined[i][combined[0].index('reasons')].split(','), combined[i][combined[0].index('symbol')],
-                                             load_backtest_ticker_data(combined[i][combined[0].index('symbol')], client, module_config), module_config)
-                backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')]))
-                for _backtest_key in analyzed_backtest_keys:
-                # for ii in range(combined[0].index('backtested') + 1, len(combined[0])):
-                        # print(f"Report_headers {_report_headers[i]}")
-                    combined[i][combined[0].index(_backtest_key)] = backtest_results[_backtest_key]
-            except:
-                combined[i][combined[0].index('backtested')] = False
-                traceback.print_exc()
-                print(f"Could not backtest ticker {combined[i][0]}")
-    write_csv("mpb_backtested.csv", combined)
-
+        for i in range(1, len(combined)):
+            if int(combined[i][combined[0].index('pick_level')]) == module_config['backtest_alert_count']:
+                try:
+                    combined[i][combined[0].index('backtested')] = True
+                    # if module_config['logging']:
+                    print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('reasons')].split(','))}, running backtest for {module_config['backtest_days']} days")
+                    backtest_ticker_concurrently(combined[i][combined[0].index('reasons')].split(','), combined[i][combined[0].index('symbol')],
+                                                 load_backtest_ticker_data(combined[i][combined[0].index('symbol')], client, module_config), module_config)
+                    backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')]))
+                    for _backtest_key in analyzed_backtest_keys:
+                    # for ii in range(combined[0].index('backtested') + 1, len(combined[0])):
+                            # print(f"Report_headers {_report_headers[i]}")
+                        combined[i][combined[0].index(_backtest_key)] = backtest_results[_backtest_key]
+                except:
+                    combined[i][combined[0].index('backtested')] = False
+                    traceback.print_exc()
+                    print(f"Could not backtest ticker {combined[i][0]}")
+        results['mpb_backtested'] = combined
+        try:
+            write_csv("mpb_backtested.csv", combined)
+        except:
+            print(f"Cannot write file")
+    print(f"API KEY: {module_config['api_key']}")
+    return results
     #ok so once we are here, let's go ahead and find the tickers that we need to backtest and run int
 
 def print_hi(name):
@@ -181,13 +199,25 @@ def print_hi(name):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    start_time = time.time()
-    # client = polygon.RESTClient(api_key=module_config['api_key'])
-    # history_entries = load_ticker_history_csv("GE", client, 1, "hour", today, today, 500)
-    # history_entries = load_ticker_history_raw("GE",  client, 1, "hour", today, today, 500)
-    # did_dmi_alert(load_dmi_adx("GE", client, history_entries, module_config), history_entries, "GE", module_config)
-    find_tickers()
-    # ticker_history = load_ticker_history_raw(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
-    # ticke = load_ticker_history_pd_frame(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
 
-    print(f"\nCompleted NYSE Market Scan in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")
+        start_time = time.time()
+        # client = polygon.RESTClient(api_key=module_config['api_key'])
+        # history_entries = load_ticker_history_csv("GE", client, 1, "hour", today, today, 500)
+        # history_entries = load_ticker_history_raw("GE",  client, 1, "hour", today, today, 500)
+        # did_dmi_alert(load_dmi_adx("GE", client, history_entries, module_config), history_entries, "GE", module_config)
+        ##find data
+        if module_config['trading_hours_only']:
+            if datetime.datetime.now().hour < 17 and datetime.datetime.now().hour > 8:
+                results = find_tickers()
+                #do notification send
+                send_email("andrew.smiley937@gmail.com","andrew.smiley937@gmail.com", f"MPB Traders (Hourly)  {datetime.datetime.now().strftime('%Y-%m-%d %H:00')}", generate_mpd_html_table(results['mpb']))
+            else:
+                print(f"Not currently trading hours ({datetime.datetime.now()}), skipping")
+        else:
+            results = find_tickers()
+            # do notification send
+            send_email("andrew.smiley937@gmail.com", "andrew.smiley937@gmail.com",f"MPB Traders (Hourly)  {datetime.datetime.now().strftime('%Y-%m-%d %H:00')}",generate_mpd_html_table(results['mpb']))
+        # ticker_history = load_ticker_history_raw(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
+        # ticke = load_ticker_history_pd_frame(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
+
+        print(f"\nCompleted NYSE Market Scan in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")

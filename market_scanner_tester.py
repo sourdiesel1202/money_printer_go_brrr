@@ -20,7 +20,7 @@ required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
     # ticker = "GE"
-    # data_lines = read_csv("data/nyse.csv")
+    # data_lines = read_csv(f"data/nyse.csv")
     # if module_config['logging']:
     # print(f"Loaded {len(data_lines) - 1} tickers on NYSE")
     ticker_results = {}
@@ -100,9 +100,9 @@ def process_tickers(tickers):
     write_csv(f"{os.getpid()}.csv", results)
 def find_tickers():
     n = module_config['process_load_size']
-    # tickers = read_csv("data/nyse.csv")
+    # tickers = read_csv(f"data/nyse.csv")
     # tickers = module_config['tickers']
-    tickers = read_csv("data/nyse.csv")
+    tickers = read_csv(f"data/nyse.csv")
     del tickers[0]
     if module_config['test_mode']:
         tickers = tickers[:module_config['test_population_size']]

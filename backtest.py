@@ -44,7 +44,7 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
             f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
         time.sleep(10)
     # write_csv(f"{ticker}_backtest.csv", combine_csvs([f"{x.pid}backtest.csv" for x in processes.values()]))
-    combined = combine_csvs([f"data/backtests/{x.pid}backtest.csv" for x in processes.values()])
+    combined = combine_csvs([f"{module_config['output_dir']}{x.pid}backtest.csv" for x in processes.values()])
     header = combined[0]
     del combined[0]
     # sorted(combined, key=lambda x: int(x[-2]))
@@ -52,14 +52,14 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
     combined.reverse()
     # results.reverse()
     combined.insert(0, header)
-    write_csv(f"data/backtests/{ticker}_backtest.csv", combined)
-    backtest_results = analyze_backtest_results(load_backtest_results(ticker))
+    write_csv(f"{module_config['output_dir']}{ticker}_backtest.csv", combined)
+    backtest_results = analyze_backtest_results(load_backtest_results(ticker, module_config))
     result_rows = [analyzed_backtest_keys]
     new_row = []
     for k in analyzed_backtest_keys:
          new_row.append(backtest_results[k])
     result_rows.append(new_row)
-    write_csv(f"data/backtests/{ticker}_backtest_analyzed.csv", result_rows)
+    write_csv(f"{module_config['output_dir']}{ticker}_backtest_analyzed.csv", result_rows)
     # combined =
 def write_backtest_rawdata(lines):
     with open(f"{os.getpid()}.dat", "w+") as f:
@@ -284,8 +284,8 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
         _result_string = ""
         for _type, _values in match_data.items():
             print(f"{_result_string} {_type}|O:{_values.open}|H:{_values.high}|L:{_values.low}|C:{_values.close}| O|C Delta between {_type} and splus0: {float(_values.open)-float(match_data['splus0'].open)}|{float(_values.close)-float(match_data['splus0'].close)}")
-    process_results_dict(backtest_results)
-def process_results_dict(backtest_results):
+    process_results_dict(backtest_results, module_config)
+def process_results_dict(backtest_results, module_config):
     #ok so here we need to generate a csv from the data here
     rows = [['timestamp', 'splus0','splus0_delta','splus0_delta_percentage','splus3','splus3_delta','splus3_delta_percentage','splus5','splus5_delta','splus5_delta_percentage' ,'splus7','splus7_delta','splus7_delta_percentage','splus9','splus9_delta','splus9_delta_percentage', 'ntdo', 'ntdo_delta','ntdo_delta_percentage', 'ntdc', 'ntdc_delta', 'ntdc_delta_percentage']]
     for ts,data in backtest_results.items():
@@ -340,11 +340,11 @@ def process_results_dict(backtest_results):
     rows[0].append('min_low')
     rows[0].append('min_low_delta')
     rows[0].append('min_low_delta_percentage')
-    write_csv(f"data/backtests/{os.getpid()}backtest.csv", rows)
+    write_csv(f"{module_config['output_dir']}{os.getpid()}backtest.csv", rows)
 
-def load_backtest_results(ticker):
+def load_backtest_results(ticker, module_config):
     #
-    data =  read_csv(f"data/backtests/{ticker}_backtest.csv")
+    data =  read_csv(f"{module_config['output_dir']}{ticker}_backtest.csv")
     json_data = {k:[] for k in data[0]}
     for i in range(1, len(data)):
         for ii in range(0, len(data[0])):

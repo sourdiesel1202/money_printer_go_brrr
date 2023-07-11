@@ -13,11 +13,13 @@ def load_macd(ticker, client,module_config,  **kwargs):
             if entry.value > entry.signal:
                 entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
                 # entry_date.tzinfo = ZoneInfo('US/Eastern')
-                print(f"{entry_date}: {ticker}: MACD {entry.value} was over signal {entry.signal}: histogram {entry.histogram}")
+                if module_config['logging']:
+                    print(f"{entry_date}: {ticker}: MACD {entry.value} was over signal {entry.signal}: histogram {entry.histogram}")
             else:
                 entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
                 # entry_date.tzinfo = ZoneInfo('US/Eastern')
-                print(f"{entry_date}: {ticker}: Signal {entry.signal} was over MACD {entry.value}: histogram {entry.histogram}")
+                if module_config['logging']:
+                    print(f"{entry_date}: {ticker}: Signal {entry.signal} was over MACD {entry.value}: histogram {entry.histogram}")
         _macd.append(entry)
     return _macd
 

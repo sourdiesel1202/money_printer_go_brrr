@@ -1,4 +1,0 @@
-symbol,macd_flag,rsi_flag,sma_flag,dmi_flag,adx_flag,pick_level,conditions_matched,reasons,backtested,likelihood_long_3,likelihood_short_3,likelihood_long_5,likelihood_short_5,likelihood_long_7,likelihood_short_7,likelihood_long_9,likelihood_short_9,likelihood_long_ntdo,likelihood_short_ntdo,likelihood_long_ntdc,likelihood_short_ntdc,average_price_increase_percentage,average_price_decrease_percentage
-AVIV,False,False,False,False,False,0,,,False,,,,,,,,,,,,,,
-AVK,False,False,False,False,False,0,,,False,,,,,,,,,,,,,,
-AVT,True,False,False,False,True,2,"macd,adx","MACD_MACD_CROSS_SIGNAL,ADX_THRESHOLD_UPWARD",False,,,,,,,,,,,,,,
