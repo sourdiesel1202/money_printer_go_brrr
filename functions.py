@@ -1,5 +1,10 @@
 import datetime
 import json, csv, os
+import multiprocessing
+import time
+from zoneinfo import ZoneInfo
+
+
 def load_module_config(module):
     print(f"Loading config file for {module}")
     with open(f"configs/{module}.json", "r") as f:
@@ -59,3 +64,35 @@ def calculate_percentage(x, y):
         return (float(x)/float(y))*100.00
     except:
         return 0.0
+def timestamp_to_datetime(timestamp):
+    return datetime.datetime.fromtimestamp(timestamp / 1e3, tz=ZoneInfo('US/Eastern'))#.strftime("%Y-%m-%d %H:%M:%S")
+
+def process_list_concurrently(data, process_function, batch_size):
+    '''
+    Process a list concurrently
+    :param data: the list to process
+    :param process_function: the function to pass to the multiprocessing module
+    :param batch_size: the number of records to process at a time
+    :return: None
+    '''
+    _keys = [x for x in data]
+    n = batch_size
+    loads = [_keys[i:i + n] for i in range(0, len(_keys), n)]
+    # for load in loads:
+    #     load.insert(0, data[0])
+    # for load in loads:
+    #     print(f"Load size: {len(load)}")
+    # return
+    processes = {}
+    for load in loads:
+        p = multiprocessing.Process(target=process_function, args=(load,))
+        p.start()
+
+        processes[str(p.pid)] = p
+    pids = [x for x in processes.keys()]
+    while any(processes[p].is_alive() for p in processes.keys()):
+        # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
+        process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
+        print(f"The following child processes are still running: {process_str}")
+        time.sleep(10)
+    return pids

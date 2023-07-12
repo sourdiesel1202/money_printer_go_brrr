@@ -10,7 +10,7 @@ if __name__ == '__main__':
     # ticker = "GE"
     for ticker in module_config['tickers']:
         if module_config['run_concurrently']:
-            backtest_ticker_concurrently([AlertType.GOLDEN_CROSS_APPEARED], ticker, load_backtest_ticker_data(ticker,client, module_config ), module_config)
+            backtest_ticker_concurrently(["MACD_SIGNAL_CROSS_MACD","SMA_CROSSOVER_DOWNWARD"], ticker, load_backtest_ticker_data(ticker,client, module_config ), module_config)
         else:
             backtest_ticker([AlertType.GOLDEN_CROSS_APPEARED], ticker, load_backtest_ticker_data(ticker,client, module_config ), module_config)
         analyze_backtest_results(load_backtest_results(ticker,module_config))
