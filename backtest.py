@@ -9,7 +9,10 @@ import datetime,io,os
 from zoneinfo import ZoneInfo
 from functions import generate_csv_string, read_csv, write_csv, delete_csv, combine_csvs, calculate_percentage
 from history import *
+from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert,determine_sma_alert_type
+from indicators import determine_rsi_alert_type, determine_macd_alert_type,determine_adx_alert_type,determine_dmi_alert_type
 from indicators import load_dmi_adx, did_adx_alert, did_dmi_alert, determine_dmi_alert_type, determine_adx_alert_type
+from indicators import  load_death_cross, load_golden_cross, determine_death_cross_alert_type,determine_golden_cross_alert_type, did_golden_cross_alert, did_death_cross_alert
 import pandas as pd
 from stockstats import wrap
 from enums import *
@@ -64,111 +67,36 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
 def write_backtest_rawdata(lines):
     with open(f"{os.getpid()}.dat", "w+") as f:
         f.write('\n'.join(lines))
-def backtest_load_macd(ticker,ticker_history, module_config):
-    df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
-    return {'macd':df['macd'],'signal':df['macds'], 'histogram': df['macdh']}
-def backtest_load_rsi(ticker,ticker_history, module_config):
-    df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
-    return df['rsi']
-
-def backtest_load_sma(ticker,ticker_history, module_config):
-    df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
-    return df[f'close_{module_config["sma_window"]}_sma']
-def backtest_did_macd_alert(indicator_data,ticker,ticker_history, module_config):
-    if module_config['logging']:
-        print(f"Checking MACD Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    # print(f"{ticker_history[-1]}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {indicator_data[ticker_history[-1].timestamp]} ")
-    # if (data[0].value > data[0].signal and data[1].value < data[1].signal)  or (data[0].value < data[0].signal and data[1].value > data[1].signal):
-    if (indicator_data['macd'][ticker_history[-1].timestamp] > indicator_data['signal'][ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] < indicator_data['signal'][ticker_history[-2].timestamp]) or \
-            (indicator_data['macd'][ticker_history[-1].timestamp] < indicator_data['signal'][ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] > indicator_data['signal'][ticker_history[-2].timestamp]):
-        return True
-    else:
-        return  False
-
-
-def backtest_did_rsi_alert(indicator_data,ticker,ticker_history, module_config):
-    if module_config['logging']:
-        print(f"Checking RSI Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    if indicator_data[ticker_history[-1].timestamp] > module_config['rsi_overbought_threshold'] or indicator_data[ticker_history[-1].timestamp] < module_config['rsi_oversold_threshold']:
-        return True
-    else:
-        return False
-def backtest_did_dmi_alert(indicator_data,ticker,ticker_history, module_config):
-    if module_config['logging']:
-        print(f"Checking DMI Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    return did_dmi_alert(indicator_data, ticker_history, ticker, module_config)
-def backtest_did_adx_alert(indicator_data,ticker,ticker_history, module_config):
-    if module_config['logging']:
-        print(f"Checking ADX Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    return did_adx_alert(indicator_data, ticker_history, ticker, module_config)
-def backtest_did_sma_alert(indicator_data,ticker,ticker_history, module_config):
-    if module_config['logging']:
-        print(f"Checking SMA Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    if ((ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open) and ticker_history[-2].open < indicator_data[ticker_history[-2].timestamp]) or\
-            ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open) and ticker_history[-2].open > indicator_data[ticker_history[-2].timestamp]):
-        return True
-    else:
-        return False
-
-
-def backtest_determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config):
-    if (indicator_data['macd'][ticker_history[-1].timestamp] > indicator_data['signal'][ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] < indicator_data['signal'][ticker_history[-2].timestamp]) :
-        return AlertType.MACD_MACD_CROSS_SIGNAL
-    elif (indicator_data['macd'][ticker_history[-1].timestamp] < indicator_data['signal'][ ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] > indicator_data['signal'][ticker_history[-2].timestamp]):
-        return AlertType.MACD_SIGNAL_CROSS_MACD
-    else:
-        raise Exception("Unable to determine MACD alert type ")
-def backtest_determine_rsi_alert_type(indicator_data,ticker,ticker_history, module_config):
-    if indicator_data[ticker_history[-1].timestamp] >= module_config['rsi_overbought_threshold']:
-        if module_config['logging']:
-            entry_date = datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
-            print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {indicator_data[ticker_history[-1].timestamp]} ")
-        return AlertType.RSI_OVERBOUGHT
-    elif indicator_data[ticker_history[-1].timestamp] < module_config['rsi_oversold_threshold']:
-        if module_config['logging']:
-            entry_date = datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
-            print(f"{entry_date}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {indicator_data[ticker_history[-1].timestamp]} ")
-        return AlertType.RSI_OVERSOLD
-    else:
-        raise Exception(f"Could not determine RSI Direction for {ticker}")
-
-
-def backtest_determine_sma_alert_type(indicator_data,ticker,ticker_history, module_config):
-    if ((ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low >
-         indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open) and
-        ticker_history[-2].open < indicator_data[ticker_history[-2].timestamp]):
-        return AlertType.SMA_CROSSOVER_UPWARD
-    elif ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high <
-      indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open) and
-     ticker_history[-2].open > indicator_data[ticker_history[-2].timestamp]):
-        return AlertType.SMA_CROSSOVER_DOWNWARD
-    else:
-        raise Exception(f"Could not determine SMA Direction for {ticker}")
-
 
 data_functions = {
-    "macd": backtest_load_macd,
-    "rsi": backtest_load_rsi,
+    "macd": load_macd,
+    "rsi": load_rsi,
     "dmi": load_dmi_adx,
     "adx": load_dmi_adx,
-    "sma": backtest_load_sma
+    "sma": load_sma,
+    "golden_cross": load_golden_cross,
+    "death_cross": load_death_cross
 }
 
 alert_functions = {
-    "macd": backtest_did_macd_alert,
-    "rsi": backtest_did_rsi_alert,
+    "macd": did_macd_alert,
+    "rsi": did_rsi_alert,
     "dmi": did_dmi_alert,
     "adx": did_adx_alert,
-    "sma": backtest_did_sma_alert
+    "sma": did_sma_alert,
+    "golden_cross": did_golden_cross_alert,
+    "death_cross": did_death_cross_alert
 }
 
 # alert_type_functions = {
 alert_type_functions = {
-    "macd": backtest_determine_macd_alert_type,
-    "rsi": backtest_determine_rsi_alert_type,
+    "macd": determine_macd_alert_type,
+    "rsi": determine_rsi_alert_type,
     "dmi": determine_dmi_alert_type,
     "adx": determine_adx_alert_type,
-    "sma": backtest_determine_sma_alert_type
+    "sma": determine_sma_alert_type,
+    "golden_cross": determine_golden_cross_alert_type,
+    "death_cross":determine_death_cross_alert_type
 
 }
 def generate_polygon_date_str(days_ago):
@@ -182,13 +110,14 @@ def load_backtest_ticker_data(ticker, client,module_config):
     # client = polygon.RESTClient(api_key=module_config['api_key'])
     history_data = []
     # for entry in client.list_aggs(ticker=ticker, multiplier=multiplier, timespan=timespan, from_=from_, to=to,limit=limit, sort='asc'):
-    for entry in client.list_aggs(ticker=ticker, multiplier=1, timespan=module_config['timespan'], from_=generate_polygon_date_str(module_config['backtest_days']), to=generate_polygon_date_str(0),
-                                  sort='asc'):
+    for entry in client.list_aggs(ticker=ticker, multiplier=1, timespan=module_config['timespan'], from_=get_today(module_config,module_config['backtest_days']), to=module_config['test_date'],
+                                  sort='asc', limit=50000):
         if module_config['logging']:
             entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
             # print(f"BACKTEST:{entry_date}: {ticker}| Open: {entry.open} High: {entry.high} Low: {entry.low} Close: {entry.close} Volume: {entry.volume}")
         if datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour >=9 and datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour <= 16:
             history_data.append(entry)
+    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:")
     return history_data
 
 def backtest_ticker(alert_types, ticker, ticker_history, module_config):
@@ -206,7 +135,7 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
 
     # once we have results, we can calculate our averages
     #turn off logging
-    module_config['logging'] = False
+    # module_config['logging'] = False
     if len(ticker_history) < 20:
         raise Exception(f"Cannot backtest ticker with {len(ticker_history)} history records, need at least 20")
 
@@ -259,19 +188,21 @@ def backtest_ticker(alert_types, ticker, ticker_history, module_config):
         while not ntd_calculated:
             try:
                 if datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day > datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day and datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour == 10 and 'ntdo' not in backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]: #last bit ensures we are looking at open data
-                    print(f"Calculated NTDO for {ticker}: {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} NTD ==> {datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
+                    if module_config['logging']:
+                        print(f"Calculated NTDO for {ticker}: {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} NTD ==> {datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
                     backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]['ntdo'] = ticker_history[i+_nti]
                     # break
                 elif datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day > datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).day and datetime.datetime.fromtimestamp(ticker_history[i+_nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour == 16 and 'ntdc' not in backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]: #last bit ensures we are looking at open data
-                    print(
-                        f"Calculated NTDC for {ticker}: {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} NTD ==> {datetime.datetime.fromtimestamp(ticker_history[i + _nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
+                    if module_config['logging']:
+                        print(f"Calculated NTDC for {ticker}: {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} NTD ==> {datetime.datetime.fromtimestamp(ticker_history[i + _nti].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
                     backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]['ntdc'] = ticker_history[i + _nti]
                     # break
                 else:
                     _nti = _nti +1
                 ntd_calculated = 'ntdo' in backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"] and 'ntdc' in backtest_results[f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}"]
                 if ntd_calculated:
-                    print("Finished calculating NTD/C|O")
+                    if module_config['logging']:
+                        print("Finished calculating NTD/C|O")
             except:
                 traceback.print_exc()
                 print(f"Cannot calculate NTD for {datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')} after {_nti} periods {datetime.datetime.fromtimestamp(ticker_history[i+_nti-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')}")
@@ -343,8 +274,10 @@ def process_results_dict(backtest_results, module_config):
     write_csv(f"{module_config['output_dir']}{os.getpid()}backtest.csv", rows)
 
 def load_backtest_results(ticker, module_config):
-    #
-    data =  read_csv(f"{module_config['output_dir']}{ticker}_backtest.csv")
+    if not module_config['run_concurrently']:
+        data = read_csv(f"{module_config['output_dir']}{os.getpid()}backtest.csv")
+    else:
+        data =  read_csv(f"{module_config['output_dir']}{ticker}_backtest.csv")
     json_data = {k:[] for k in data[0]}
     for i in range(1, len(data)):
         for ii in range(0, len(data[0])):
@@ -373,8 +306,8 @@ def analyze_backtest_results(backtest_results):
     processed_results['likelihood_short_ntdo'] = calculate_percentage(len(np.where(np.array(backtest_results['ntdo_delta']) < 0)[0]), len(backtest_results['ntdo_delta']))
     processed_results['likelihood_long_ntdc'] = calculate_percentage(len(np.where(np.array(backtest_results['ntdc_delta']) > 0)[0]), len(backtest_results['ntdc_delta']))
     processed_results['likelihood_short_ntdc'] = calculate_percentage(len(np.where(np.array(backtest_results['ntdc_delta']) < 0)[0]), len(backtest_results['ntdc_delta']))
-    processed_results['average_price_increase_percentage'] =  statistics.fmean(backtest_results['average_high_delta'])
-    processed_results['average_price_decrease_percentage'] = statistics.fmean(backtest_results['average_low_delta'])
+    processed_results['average_price_increase_percentage'] =  statistics.fmean(backtest_results['average_high_delta']) if len(backtest_results['average_high_delta']) > 0 else 0.0
+    processed_results['average_price_decrease_percentage'] = statistics.fmean(backtest_results['average_low_delta']) if len(backtest_results['average_low_delta']) > 0 else 0.0
     return processed_results
     # processed_results['likelihood_long_3']
     # processed_results['likelihood_short_3']

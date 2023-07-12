@@ -1,5 +1,5 @@
 timestamp,symbol,close,volume,macd_flag,rsi_flag,sma_flag,dmi_flag,adx_flag,golden_cross_flag,death_cross_flag,pick_level,conditions_matched,reasons,backtested,likelihood_long_3,likelihood_short_3,likelihood_long_5,likelihood_short_5,likelihood_long_7,likelihood_short_7,likelihood_long_9,likelihood_short_9,likelihood_long_ntdo,likelihood_short_ntdo,likelihood_long_ntdc,likelihood_short_ntdc,average_price_increase_percentage,average_price_decrease_percentage
-2023-06-20 16:00:00,ABM,41.42,105717,True,True,False,False,True,False,False,3,"macd,rsi,adx","MACD_SIGNAL_CROSS_MACD,RSI_OVERSOLD,ADX_THRESHOLD_UPWARD",False,,,,,,,,,,,,,,
+2023-06-20 16:00:00,ABM,41.42,105717,True,True,False,False,True,False,False,3,"macd,rsi,adx","MACD_SIGNAL_CROSS_MACD,RSI_OVERSOLD,ADX_THRESHOLD_UPWARD",True,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
 2023-06-20 16:00:00,ENS,102.13,3669,False,True,False,False,True,False,False,2,"rsi,adx","RSI_OVERSOLD,ADX_THRESHOLD_UPWARD",False,,,,,,,,,,,,,,
 2023-06-20 16:00:00,EMO,29.28,5604,False,False,True,True,False,False,False,2,"sma,dmi","DMINEG_CROSSOVER_DMIPLUS,SMA_CROSSOVER_DOWNWARD",False,,,,,,,,,,,,,,
 2023-06-20 15:00:00,EDN,14.19,21321,False,True,False,False,True,False,False,2,"rsi,adx","RSI_OVERBOUGHT,ADX_THRESHOLD_UPWARD",False,,,,,,,,,,,,,,

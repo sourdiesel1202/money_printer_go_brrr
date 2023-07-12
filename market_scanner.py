@@ -11,6 +11,7 @@ import time
 from zoneinfo import ZoneInfo
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert,determine_sma_alert_type
 from indicators import determine_rsi_alert_type, determine_macd_alert_type,determine_adx_alert_type,determine_dmi_alert_type
+from indicators import  load_death_cross, load_golden_cross, determine_death_cross_alert_type,determine_golden_cross_alert_type, did_golden_cross_alert, did_death_cross_alert
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
 from functions import  load_module_config, read_csv, write_csv,combine_csvs, get_today
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
@@ -21,7 +22,7 @@ today =get_today(module_config)
 required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
-    _report_headers = ['timestamp','symbol', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
+    _report_headers = ['timestamp','symbol','close','volume', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag','golden_cross_flag','death_cross_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
     for k in analyzed_backtest_keys:
         _report_headers.append(k)
     # ticker = "GE"
@@ -30,6 +31,8 @@ def process_tickers(tickers):
     # print(f"Loaded {len(data_lines) - 1} tickers on NYSE")
     ticker_results = {}
     latest_entry = ""
+    volume = 0.0
+    close = 0.0
     for i in range(0, len(tickers)):
         # for i in range(1, len(module_config['tickers'])):
         # for ticker in module_config['tickers']:
@@ -43,14 +46,18 @@ def process_tickers(tickers):
 
             if module_config['logging']:
                 print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
-            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'], get_today(module_config, minus_days=31), today, 5000)
+            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'], get_today(module_config, minus_days=30), today, 10000)
             test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
-            if latest_entry == "":
-                latest_entry = ticker_history[-1].timestamp
+            # if latest_entry == "":
+            latest_entry = ticker_history[-1].timestamp
+            ticker_results[ticker]['volume'] =ticker_history[-1].volume
+            ticker_results[ticker]['close']= ticker_history[-1].close
             sma = load_sma(ticker, ticker_history, module_config)
             macd_data = load_macd(ticker, ticker_history, module_config)
             dmi_adx_data = load_dmi_adx(ticker, ticker_history, module_config)
             rsi_data = load_rsi(ticker, ticker_history, module_config)
+            golden_cross_data = load_golden_cross(ticker, ticker_history, module_config)
+            death_cross_data = load_death_cross(ticker, ticker_history, module_config)
 
             # def did_macd_alert(indicator_data, ticker, ticker_history, module_config):
             ticker_results[ticker]['sma'] = did_sma_alert(sma, ticker, ticker_history, module_config)
@@ -58,6 +65,8 @@ def process_tickers(tickers):
             ticker_results[ticker]['rsi'] = did_rsi_alert(rsi_data, ticker,ticker_history, module_config)
             ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker, ticker_history, module_config)
             ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data, ticker, ticker_history, module_config)
+            ticker_results[ticker]['golden_cross'] = did_golden_cross_alert(golden_cross_data, ticker, ticker_history, module_config)
+            ticker_results[ticker]['death_cross'] = did_death_cross_alert(death_cross_data, ticker, ticker_history, module_config)
             if ticker_results[ticker]['macd']:
                 ticker_results[ticker]['directions'].append(determine_macd_alert_type(macd_data, ticker,ticker_history, module_config))
             if ticker_results[ticker]['rsi']:
@@ -68,7 +77,10 @@ def process_tickers(tickers):
                 ticker_results[ticker]['directions'].append(determine_adx_alert_type(dmi_adx_data,ticker_history,ticker, module_config))
             if ticker_results[ticker]['sma']:
                 ticker_results[ticker]['directions'].append(determine_sma_alert_type(sma, ticker, ticker_history, module_config))
-
+            if ticker_results[ticker]['golden_cross']:
+                ticker_results[ticker]['directions'].append(determine_golden_cross_alert_type(golden_cross_data, ticker, ticker_history, module_config))
+            if ticker_results[ticker]['death_cross']:
+                ticker_results[ticker]['directions'].append(determine_death_cross_alert_type(death_cross_data, ticker, ticker_history, module_config))
 
         except:
             traceback.print_exc()
@@ -87,7 +99,7 @@ def process_tickers(tickers):
             continue
 
         try:
-            cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi'], 'adx': v['adx']}
+            cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi'], 'adx': v['adx'], 'golden_cross': v['golden_cross'], 'death_cross': v['death_cross']}
             matched_conditions = []
             for kk, vv in cond_dict.items():
                 if vv:
@@ -95,7 +107,7 @@ def process_tickers(tickers):
             if len(matched_conditions) >= module_config['report_alert_min']:
 
 
-                results.append([datetime.datetime.fromtimestamp(latest_entry / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S"),k, cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx']])
+                results.append([datetime.datetime.fromtimestamp(latest_entry / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S"),k,v['close'], v['volume'], cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx'], cond_dict['golden_cross'], cond_dict['death_cross']])
                 results[-1].append(len(matched_conditions))
                 results[-1].append(','.join(matched_conditions))
                 results[-1].append(','.join(v['directions']))
@@ -190,7 +202,7 @@ def find_tickers():
                     print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('reasons')].split(','))}, running backtest for {module_config['backtest_days']} days")
                     backtest_ticker_concurrently(combined[i][combined[0].index('reasons')].split(','), combined[i][combined[0].index('symbol')],
                                                  load_backtest_ticker_data(combined[i][combined[0].index('symbol')], client, module_config), module_config)
-                    backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')]))
+                    backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')], module_config))
                     for _backtest_key in analyzed_backtest_keys:
                     # for ii in range(combined[0].index('backtested') + 1, len(combined[0])):
                             # print(f"Report_headers {_report_headers[i]}")
