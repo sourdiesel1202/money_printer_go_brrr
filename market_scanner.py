@@ -9,8 +9,8 @@ from notification import send_email, generate_mpd_html_table
 import polygon, datetime
 import time
 from zoneinfo import ZoneInfo
-from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert
-from indicators import determine_rsi_direction, determine_macd_direction,determine_adx_direction,determine_dmi_direction
+from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert,determine_sma_alert_type
+from indicators import determine_rsi_alert_type, determine_macd_alert_type,determine_adx_alert_type,determine_dmi_alert_type
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
 from functions import  load_module_config, read_csv, write_csv,combine_csvs, get_today
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
@@ -41,31 +41,33 @@ def process_tickers(tickers):
         try:
 
 
-
-
-            print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
-            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'], today, today, 500)
+            if module_config['logging']:
+                print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
+            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'], get_today(module_config, minus_days=31), today, 5000)
+            test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
             if latest_entry == "":
                 latest_entry = ticker_history[-1].timestamp
-            sma = load_sma(ticker, client, module_config, ticker_history, timespan=module_config['timespan'])
-            ticker_results[ticker]['sma'] = did_sma_alert(sma, ticker_history, "GE", module_config)
-
-            macd_data = load_macd(ticker, client, module_config, timespan=module_config['timespan'] )
+            sma = load_sma(ticker, ticker_history, module_config)
+            macd_data = load_macd(ticker, ticker_history, module_config)
             dmi_adx_data = load_dmi_adx(ticker, ticker_history, module_config)
-            rsi_data = load_rsi(ticker, client, module_config)
-            ticker_results[ticker]['macd']= did_macd_alert(macd_data, ticker, module_config)
+            rsi_data = load_rsi(ticker, ticker_history, module_config)
+
+            # def did_macd_alert(indicator_data, ticker, ticker_history, module_config):
+            ticker_results[ticker]['sma'] = did_sma_alert(sma, ticker, ticker_history, module_config)
+            ticker_results[ticker]['macd']= did_macd_alert(macd_data, ticker,ticker_history, module_config)
+            ticker_results[ticker]['rsi'] = did_rsi_alert(rsi_data, ticker,ticker_history, module_config)
+            ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker, ticker_history, module_config)
+            ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data, ticker, ticker_history, module_config)
             if ticker_results[ticker]['macd']:
-                ticker_results[ticker]['directions'].append(determine_macd_direction(macd_data, ticker,module_config))
-                # print("alert worked")
-            ticker_results[ticker]['rsi']= did_rsi_alert(rsi_data, ticker, module_config)
+                ticker_results[ticker]['directions'].append(determine_macd_alert_type(macd_data, ticker,ticker_history, module_config))
             if ticker_results[ticker]['rsi']:
-                ticker_results[ticker]['directions'].append(determine_rsi_direction(rsi_data,ticker, module_config))
-            ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker,ticker_history, module_config)
+                ticker_results[ticker]['directions'].append(determine_rsi_alert_type(rsi_data,ticker, ticker_history,module_config))
             if ticker_results[ticker]['dmi']:
-                ticker_results[ticker]['directions'].append(determine_dmi_direction(dmi_adx_data,ticker,ticker_history, module_config))
-            ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data,ticker, ticker_history, module_config)
+                ticker_results[ticker]['directions'].append(determine_dmi_alert_type(dmi_adx_data,ticker,ticker_history, module_config))
             if ticker_results[ticker]['adx']:
-                ticker_results[ticker]['directions'].append(determine_adx_direction(dmi_adx_data,ticker_history,ticker, module_config))
+                ticker_results[ticker]['directions'].append(determine_adx_alert_type(dmi_adx_data,ticker_history,ticker, module_config))
+            if ticker_results[ticker]['sma']:
+                ticker_results[ticker]['directions'].append(determine_sma_alert_type(sma, ticker, ticker_history, module_config))
 
 
         except:
@@ -114,43 +116,57 @@ def process_tickers(tickers):
     write_csv(f"{module_config['output_dir']}{os.getpid()}.csv", results)
 def find_tickers():
     start_time = time.time()
-    n = module_config['process_load_size']
-    tickers = read_csv(f"data/nyse.csv")
+    # n = module_config['process_load_size']
+    # if module_config['test_mode']:
+    #     if not module_config['test_use_input_tickers']:
+    #         tickers = read_csv(f"data/nyse.csv")
+    if not module_config['test_mode'] or (module_config['test_mode'] and not module_config['test_use_input_tickers']):
+        if module_config['test_mode']:
+            tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
+            # tickers
+        else:
+            tickers = read_csv(f"data/nyse.csv")[1:]
+        # del tickers[0]
+        _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+    else:
+        _tickers = module_config['tickers']
     client = polygon.RESTClient(api_key=module_config['api_key'])
 
-    del tickers[0]
-    if module_config['test_mode']:
-        pass
+    # del tickers[0]
+        # tickers =
         # tickers = tickers[:module_config['test_population_size']]
-        # tickers = tickers[:module_config['test_population_size']]
-    _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+
     _new_tickers = []
     for _ticker in _tickers:
         if '$' not in _ticker:
             _new_tickers.append(_ticker)
     _tickers = _new_tickers
     # _dispensarys = [x for x in dispensaries.keys()]
-    task_loads = [_tickers[i:i + int(len(_tickers)/12)+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
-    # for k,v in dispensaries.items():
-    processes = {}
-    print(f"Processing {len(tickers)} in {len(task_loads)} load(s)")
-    for i in range(0, len(task_loads)):
-        print(f"Blowing {i + 1}/{len(task_loads)} Loads")
-        load = task_loads[i]
-        p = multiprocessing.Process(target=process_tickers, args=(load,))
-        p.start()
+    if module_config['run_concurrently']:
+        task_loads = [_tickers[i:i + int(len(_tickers)/12)+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
+        # for k,v in dispensaries.items():
+        processes = {}
+        print(f"Processing {len(tickers)} in {len(task_loads)} load(s)")
+        for i in range(0, len(task_loads)):
+            print(f"Blowing {i + 1}/{len(task_loads)} Loads")
+            load = task_loads[i]
+            p = multiprocessing.Process(target=process_tickers, args=(load,))
+            p.start()
 
-        processes[str(p.pid)] = p
-    while any(processes[p].is_alive() for p in processes.keys()):
-        # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
-        process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
-        time_str = f"{int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds"
-        print(
-            f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
-        time.sleep(10)
+            processes[str(p.pid)] = p
+        while any(processes[p].is_alive() for p in processes.keys()):
+            # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
+            process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
+            time_str = f"{int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds"
+            print(
+                f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
+            time.sleep(10)
 
-    print(f"All loads have been blown, generating your report")
-    combined = combine_csvs([f"{module_config['output_dir']}{x.pid}.csv" for x in processes.values()])
+        print(f"All loads have been blown, generating your report")
+        combined = combine_csvs([f"{module_config['output_dir']}{x.pid}.csv" for x in processes.values()])
+    else:
+        process_tickers(_tickers)
+        combined = read_csv(f"{module_config['output_dir']}{os.getpid()}.csv")
     header = combined[0]
     del combined[0]
     # sorted(combined, key=lambda x: int(x[-2]))

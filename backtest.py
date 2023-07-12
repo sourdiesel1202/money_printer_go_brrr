@@ -9,7 +9,7 @@ import datetime,io,os
 from zoneinfo import ZoneInfo
 from functions import generate_csv_string, read_csv, write_csv, delete_csv, combine_csvs, calculate_percentage
 from history import *
-from indicators import load_dmi_adx, did_adx_alert, did_dmi_alert, determine_dmi_direction, determine_adx_direction
+from indicators import load_dmi_adx, did_adx_alert, did_dmi_alert, determine_dmi_alert_type, determine_adx_alert_type
 import pandas as pd
 from stockstats import wrap
 from enums import *
@@ -166,8 +166,8 @@ alert_functions = {
 alert_type_functions = {
     "macd": backtest_determine_macd_alert_type,
     "rsi": backtest_determine_rsi_alert_type,
-    "dmi": determine_dmi_direction,
-    "adx": determine_adx_direction,
+    "dmi": determine_dmi_alert_type,
+    "adx": determine_adx_alert_type,
     "sma": backtest_determine_sma_alert_type
 
 }
