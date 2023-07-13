@@ -1,4 +1,7 @@
 # This is a sample Python script.
+# import operator import itemgetter
+from iteration_utilities import chained
+from functools import partial
 import os, operator
 import traceback
 import multiprocessing
@@ -202,7 +205,8 @@ def find_tickers():
     header = combined[0]
     del combined[0]
     # sorted(combined, key=lambda x: int(x[-2]))
-    combined.sort(key=operator.itemgetter(header.index("pick_level")))
+    itemgetter_int = chained(operator.itemgetter(*[header.index(x) for x in module_config['sort_fields']]), partial(map, float), tuple)
+    combined.sort(key=itemgetter_int)
     combined.reverse()
     # results.reverse()
     combined.insert(0, header)
