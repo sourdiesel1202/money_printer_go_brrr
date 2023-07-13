@@ -10,10 +10,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
-    """
-    This function searches for strains given an input name string i.e. orte, northe, etc
-
-    """
     start_time = time.time()
     # client = polygon.RESTClient(api_key=module_config['api_key'])
     # history_entries = load_ticker_history_csv("GE", client, 1, "hour", today, today, 500)

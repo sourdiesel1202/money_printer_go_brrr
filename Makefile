@@ -1,36 +1,33 @@
-export LAMBDA_NAME=MPB_Alerting1
+export LAMBDA_NAME=mpb_lambda
+export LAYER_NAME=mpb_layer
+export LAYER_DESCRIPTION=mpb_layer
 export LAMBDA_REGION=us-east-2
+export AWS_CA_BUNDLE /Users/andrew/Downloads/mpb.pem
 
 .DEFAULT_GOAL := all
+create_layer:
+	/bin/sh ./scripts/create_layer.sh
+
+deploy_layer:
+	/bin/sh ./scripts/deploy_layer.sh
+
+
+create:
+	/bin/sh ./scripts/create.sh
 
 build:
-	pip3 install -r requirements.txt \
-		--platform manylinux2014_x86_64 \
-		--target=. \
-		--implementation cp \
-		--python 3.9 \
-		--only-binary=:all: --upgrade
+
+	/bin/sh ./scripts/build.sh
 
 deploy:
-	zip -r function.zip ./
-	aws lambda update-function-code \
-		--function-name "${LAMBDA_NAME}" \
-		--zip-file fileb://function.zip \
-		--region="${LAMBDA_REGION}" \
-		| jq ".LastUpdateStatusReason" -r
-	aws lambda wait function-updated \
-		--function-name "${LAMBDA_NAME}" \
-		--region="${LAMBDA_REGION}"
-	@echo "The function has been deloyed."
+
+	/bin/sh ./scripts/deploy.sh
 
 run:
-	aws lambda invoke \
-		--function-name "${LAMBDA_NAME}" \
-		--region="${LAMBDA_REGION}" out \
-		--log-type Tail \
-		| jq ".LogResult" -r | base64 -d
+	/bin/sh ./scripts/run.sh
 
 all:
+
 	make build
 	make deploy
 	make run

@@ -1,4 +1,7 @@
 configs/*
+output/*
+data/backtests*
 .idea/*
 *.pyc
-*/
+.env
+*.zip
