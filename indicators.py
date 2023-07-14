@@ -128,9 +128,9 @@ def did_sma_alert(indicator_data,ticker,ticker_history, module_config):
         return False
 
 def determine_sma_alert_type(indicator_data,ticker,ticker_history, module_config):
-    if ((ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open) and not (ticker_history[-2].close > indicator_data[ticker_history[-2].timestamp] and ticker_history[-2].low > indicator_data[ticker_history[-2].timestamp] and ticker_history[-2].close > ticker_history[-2].open)):
+    if (ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open):
         return AlertType.SMA_CONFIRMATION_UPWARD
-    elif ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open) and not (ticker_history[-2].close < indicator_data[ticker_history[-2].timestamp] and ticker_history[-2].low < indicator_data[ticker_history[-2].timestamp] and ticker_history[-2].close < ticker_history[-2].open)):
+    elif (ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open):
         return AlertType.SMA_CONFIRMATION_DOWNWARD
     else:
         raise Exception(f"Could not determine SMA Direction for {ticker}")

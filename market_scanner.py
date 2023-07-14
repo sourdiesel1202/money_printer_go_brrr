@@ -17,6 +17,8 @@ from indicators import determine_rsi_alert_type, determine_macd_alert_type,deter
 from indicators import  load_death_cross, load_golden_cross, determine_death_cross_alert_type,determine_golden_cross_alert_type, did_golden_cross_alert, did_death_cross_alert
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
 from functions import  load_module_config, read_csv, write_csv,combine_csvs, get_today
+from enums import  PositionType
+from validation import validate_ticker
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results,analyze_backtest_results, analyzed_backtest_keys
@@ -34,6 +36,8 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     death_cross_data = load_death_cross(ticker, ticker_history, module_config)
 
     # def did_macd_alert(indicator_data, ticker, ticker_history, module_config):
+    ticker_results[ticker]['long_validation'] = ','.join([k for k, v in validate_ticker(PositionType.LONG, ticker, ticker_history, module_config).items() if v])
+    ticker_results[ticker]['short_validation'] = ','.join([k for k, v in validate_ticker(PositionType.SHORT, ticker, ticker_history, module_config).items() if v])
     ticker_results[ticker]['sma'] = did_sma_alert(sma, ticker, ticker_history, module_config)
     ticker_results[ticker]['macd'] = did_macd_alert(macd_data, ticker, ticker_history, module_config)
     ticker_results[ticker]['rsi'] = did_rsi_alert(rsi_data, ticker, ticker_history, module_config)
@@ -69,7 +73,8 @@ def process_tickers(tickers):
 
 
     client = polygon.RESTClient(api_key=module_config['api_key'])
-    _report_headers = ['timestamp','symbol','price','volume', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag','golden_cross_flag','death_cross_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
+    # _report_headers = ['timestamp','symbol','price','volume', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag','golden_cross_flag','death_cross_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
+    _report_headers = ['timestamp','symbol','price','volume','long_validation', 'short_validation', 'pick_level', 'conditions_matched','alerts triggered', 'backtested']
     for k in analyzed_backtest_keys:
         _report_headers.append(k)
     # ticker = "GE"
@@ -92,7 +97,7 @@ def process_tickers(tickers):
 
             if module_config['logging']:
                 print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
-            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=30), today, 10000)
+            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=365), today, 10000)
             test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
             if ticker_history[-1].volume < module_config['volume_limit'] or ticker_history[-1].close < module_config['price_limit']:
                 # if module_  config['logging']:
@@ -130,7 +135,7 @@ def process_tickers(tickers):
             if len(matched_conditions) >= module_config['report_alert_min']:
 
 
-                results.append([datetime.datetime.fromtimestamp(latest_entry / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S"),k,v['close'], v['volume'], cond_dict['macd'], cond_dict['rsi'],cond_dict['sma'], cond_dict['dmi'],cond_dict['adx'], cond_dict['golden_cross'], cond_dict['death_cross']])
+                results.append([datetime.datetime.fromtimestamp(latest_entry / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S"),k,v['close'], v['volume'],v['long_validation'],v['short_validation']])
                 results[-1].append(len(matched_conditions))
                 results[-1].append(','.join(matched_conditions))
                 results[-1].append(','.join(v['directions']))
@@ -156,13 +161,17 @@ def find_tickers():
     #     if not module_config['test_use_input_tickers']:
     #         tickers = read_csv(f"data/nyse.csv")
     if not module_config['test_mode'] or (module_config['test_mode'] and not module_config['test_use_input_tickers']):
+
         if module_config['test_mode']:
             tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
             # tickers
         else:
-            tickers = read_csv(f"data/nyse.csv")[1:]
+            if module_config['test_use_input_tickers']:
+                _tickers = module_config['tickers']
+            else:
+                tickers = read_csv(f"data/nyse.csv")[1:]
         # del tickers[0]
-        _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+                _tickers = [tickers[i][0] for i in range(0, len(tickers))]
     else:
         _tickers = module_config['tickers']
     client = polygon.RESTClient(api_key=module_config['api_key'])
