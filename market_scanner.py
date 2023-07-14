@@ -13,11 +13,11 @@ import polygon, datetime
 import time
 from zoneinfo import ZoneInfo
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert,determine_sma_alert_type
-from indicators import determine_rsi_alert_type, determine_macd_alert_type,determine_adx_alert_type,determine_dmi_alert_type
+from indicators import determine_rsi_alert_type, determine_macd_alert_type,determine_adx_alert_type,determine_dmi_alert_type,load_ticker_similar_trends
 from indicators import  load_death_cross, load_golden_cross, determine_death_cross_alert_type,determine_golden_cross_alert_type, did_golden_cross_alert, did_death_cross_alert
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv, \
-    clear_ticker_history_cache
-from functions import  load_module_config, read_csv, write_csv,combine_csvs, get_today
+    clear_ticker_history_cache, load_ticker_history_cached
+from functions import load_module_config, read_csv, write_csv, combine_csvs, get_today, process_list_concurrently
 from enums import  PositionType
 from validation import validate_ticker
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
@@ -29,7 +29,8 @@ required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 
 
 def process_results(ticker_results):
-    _report_headers = ['timestamp','symbol','price','volume','long_validation', 'short_validation', 'pick_level', 'conditions_matched','alerts triggered', 'backtested']
+    #this gets called after all the ticker data is loaded, thus we can use cached data
+    _report_headers = ['timestamp','symbol','price','volume','long_validation', 'short_validation', 'pick_level', 'conditions_matched','alerts triggered','similar_tickers', 'backtested']
     for k in analyzed_backtest_keys:
         _report_headers.append(k)
     results = []
@@ -58,6 +59,11 @@ def process_results(ticker_results):
                 results[-1].append(len(matched_conditions))
                 results[-1].append(','.join(matched_conditions))
                 results[-1].append(','.join(v['directions']))
+                #ok so here we can do our test of similar tickers
+                if len(matched_conditions) > module_config['report_alert_min']:
+                    results[-1].append(','.join(load_ticker_similar_trends(k, module_config)))
+                else:
+                    results[-1].append('')
                 ##stub in backtest entries
                 results[-1].append(False)
                 for _k in analyzed_backtest_keys:
@@ -114,9 +120,8 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
             determine_death_cross_alert_type(death_cross_data, ticker, ticker_history, module_config))
 
 def process_tickers(tickers):
-
-
     client = polygon.RESTClient(api_key=module_config['api_key'])
+    # client = polygon.RESTClient(api_key=module_config['api_key'])
     # _report_headers = ['timestamp','symbol','price','volume', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag','golden_cross_flag','death_cross_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
     # ticker = "GE"
     # data_lines = read_csv(f"data/nyse.csv")
@@ -138,7 +143,8 @@ def process_tickers(tickers):
 
             if module_config['logging']:
                 print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
-            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=365), today, 10000, module_config)
+            # ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=365), today, 10000, module_config)
+            ticker_history = load_ticker_history_cached(ticker, module_config)
             test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
             if ticker_history[-1].volume < module_config['volume_limit'] or ticker_history[-1].close < module_config['price_limit']:
                 # if module_  config['logging']:
@@ -158,6 +164,65 @@ def process_tickers(tickers):
             del ticker_results[ticker]
     # results = [['symbol','macd_flag', 'rsi_flag', 'sma_flag', 'pick_level', 'conditions_matched']]
     process_results(ticker_results)
+
+def load_ticker_histories(_tickers):
+    client = polygon.RESTClient(api_key=module_config['api_key'])
+    _module_config  =load_module_config(__file__.split("/")[-1].split(".py")[0])
+    successes = []
+    failures = [['symbol']]
+    for ticker in _tickers:
+        try:
+            _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), today, limit=50000, module_config=_module_config)
+            successes.append(ticker)
+        except:
+            # traceback.print_exc()
+            failures.append([ticker])
+    write_csv(f"{module_config['output_dir']}mpb_load_failures.csv",failures)
+    # return  successes
+
+
+def generate_report(_tickers, module_config):
+    # _tickers = load_ticker_histories(_tickers)
+    print(f"Loading history data for {len(_tickers)} tickers")
+    if module_config['run_concurrently']:
+        process_list_concurrently(_tickers, load_ticker_histories,int(len(_tickers)/12)+1)
+    else:
+        load_ticker_histories(_tickers)
+    _tickers = [x.split(".csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]
+    if module_config['run_concurrently']:
+        task_loads = [_tickers[i:i + int(len(_tickers)/12)+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
+        # for k,v in dispensaries.items():
+        processes = {}
+        print(f"Processing {len(_tickers)} in {len(task_loads)} load(s)")
+        for i in range(0, len(task_loads)):
+            print(f"Blowing {i + 1}/{len(task_loads)} Loads")
+            load = task_loads[i]
+            p = multiprocessing.Process(target=process_tickers, args=(load,))
+            p.start()
+
+            processes[str(p.pid)] = p
+        while any(processes[p].is_alive() for p in processes.keys()):
+            # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
+            process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
+            time_str = f"{int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds"
+            print(
+                f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
+            time.sleep(10)
+
+        print(f"All loads have been blown, generating your report")
+        combined = combine_csvs([f"{module_config['output_dir']}{x.pid}.csv" for x in processes.values()])
+    else:
+        process_tickers(_tickers)
+        combined = read_csv(f"{module_config['output_dir']}{os.getpid()}.csv")
+    header = combined[0]
+    del combined[0]
+    # sorted(combined, key=lambda x: int(x[-2]))
+    itemgetter_int = chained(operator.itemgetter(*[header.index(x) for x in module_config['sort_fields']]), partial(map, float), tuple)
+    combined.sort(key=itemgetter_int)
+    combined.reverse()
+    # results.reverse()
+    combined.insert(0, header)
+    return combined
 def find_tickers():
     start_time = time.time()
     # n = module_config['process_load_size']
@@ -193,44 +258,19 @@ def find_tickers():
             _new_tickers.append(_ticker)
     _tickers = _new_tickers
     # _dispensarys = [x for x in dispensaries.keys()]
-    if module_config['run_concurrently']:
-        task_loads = [_tickers[i:i + int(len(_tickers)/12)+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
-        # for k,v in dispensaries.items():
-        processes = {}
-        print(f"Processing {len(_tickers)} in {len(task_loads)} load(s)")
-        for i in range(0, len(task_loads)):
-            print(f"Blowing {i + 1}/{len(task_loads)} Loads")
-            load = task_loads[i]
-            p = multiprocessing.Process(target=process_tickers, args=(load,))
-            p.start()
-
-            processes[str(p.pid)] = p
-        while any(processes[p].is_alive() for p in processes.keys()):
-            # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
-            process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
-            time_str = f"{int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds"
-            print(
-                f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
-            time.sleep(10)
-
-        print(f"All loads have been blown, generating your report")
-        combined = combine_csvs([f"{module_config['output_dir']}{x.pid}.csv" for x in processes.values()])
-    else:
-        process_tickers(_tickers)
-        combined = read_csv(f"{module_config['output_dir']}{os.getpid()}.csv")
-    header = combined[0]
-    del combined[0]
-    # sorted(combined, key=lambda x: int(x[-2]))
-    itemgetter_int = chained(operator.itemgetter(*[header.index(x) for x in module_config['sort_fields']]), partial(map, float), tuple)
-    combined.sort(key=itemgetter_int)
-    combined.reverse()
-    # results.reverse()
-    combined.insert(0, header)
+    combined = generate_report(_tickers, module_config)
     try:
         write_csv("mpb.csv", combined)
     except:
         print(f"cannot write file")
     results = {"mpb": combined, "mpb_backtested":None}
+    run_backtests(results, module_config)
+    print(f"API KEY: {module_config['api_key']}")
+    return results
+    #ok so once we are here, let's go ahead and find the tickers that we need to backtest and run int
+
+def run_backtests(results, module_config):
+    combined = results['mpb']
     if module_config['backtest']:
         print("##############\nRunning Market Scanner Backtest\n##############")
 
@@ -241,7 +281,7 @@ def find_tickers():
                     # if module_config['logging']:
                     print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('reasons')].split(','))}, running backtest for {module_config['backtest_days']} days")
                     backtest_ticker_concurrently(combined[i][combined[0].index('reasons')].split(','), combined[i][combined[0].index('symbol')],
-                                                 load_backtest_ticker_data(combined[i][combined[0].index('symbol')], client, module_config), module_config)
+                                                 load_ticker_history_cached(combined[i][combined[0].index('symbol')], module_config), module_config)
                     backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')], module_config))
                     for _backtest_key in analyzed_backtest_keys:
                     # for ii in range(combined[0].index('backtested') + 1, len(combined[0])):
@@ -256,13 +296,6 @@ def find_tickers():
             write_csv("mpb_backtested.csv", combined)
         except:
             print(f"Cannot write file")
-    print(f"API KEY: {module_config['api_key']}")
-    return results
-    #ok so once we are here, let's go ahead and find the tickers that we need to backtest and run int
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
 
 
 # Press the green button in the gutter to run the script.

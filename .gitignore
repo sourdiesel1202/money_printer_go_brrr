@@ -1,6 +1,7 @@
 configs/*
 output/*
-data/backtests*
+data/backtests/*
+data/cached/*.csv
 .idea/*
 *.pyc
 .env

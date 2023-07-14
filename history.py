@@ -30,8 +30,9 @@ def convert_ticker_history_to_csv(ticker, ticker_history):
     return rows
 def load_ticker_history_cached(ticker,module_config):
     ticker_history = []
-    for entry in read_csv(f"{module_config['output_dir']}{ticker}.csv")[1:]:
-        ticker_history.append(TickerHistory(*[x for x in entry]))
+
+    for entry in read_csv(f"{module_config['output_dir']}cached/{ticker}.csv")[1:]:
+        ticker_history.append(TickerHistory(*[float(x) for x in entry]))
     return ticker_history
 def clear_ticker_history_cache(module_config):
     os.system (f" rm -rf {module_config['output_dir']}cached/")

@@ -87,6 +87,7 @@ def process_list_concurrently(data, process_function, batch_size):
     # return
     processes = {}
     for load in loads:
+        # p = multiprocessing.Process(target=process_function, args=(load,))
         p = multiprocessing.Process(target=process_function, args=(load,))
         p.start()
 

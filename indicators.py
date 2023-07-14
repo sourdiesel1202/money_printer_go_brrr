@@ -1,10 +1,18 @@
+import operator
+import os
+import traceback
+
+from iteration_utilities import chained
+from functools import partial
+
 from enums import OrderType
 import datetime
 from zoneinfo import ZoneInfo
-from history import load_ticker_history_pd_frame, load_ticker_history_csv
+from history import load_ticker_history_pd_frame, load_ticker_history_csv, load_ticker_history_cached
 from stockstats import wrap
 from enums import *
 from shape import compare_tickers
+from functions import human_readable_datetime
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 
 def load_macd(ticker,ticker_history, module_config):
@@ -276,3 +284,25 @@ def determine_golden_cross_alert_type(indicator_data,ticker,ticker_history, modu
 
 def has_matching_trend_with_ticker(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config):
     return compare_tickers(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config) >= module_config['line_similarity_gt']
+
+def load_ticker_similar_trends(ticker, module_config):
+    ticker_history = load_ticker_history_cached(ticker, module_config)
+    result = []
+    for compare_ticker in [x.split(".csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]:
+        try:
+            # if module_config['logging']:
+            print(f"{human_readable_datetime(datetime.datetime.now())}:${ticker}: Performing line comparison of ${ticker} <==> ${compare_ticker}")
+            similarity = compare_tickers(ticker, ticker_history, compare_ticker, load_ticker_history_cached(compare_ticker, module_config), module_config)
+            if similarity >= module_config['line_similarity_gt']:
+                result.append([compare_ticker, similarity])
+        except:
+            pass
+            # traceback.print_exc()
+
+
+    #ok so once we get here, we need to sort by similarity, take top 3?
+    # itemgetter_int = chained(operator.itemgetter(1),
+    #                          partial(map, float), tuple)
+    result.sort(key=operator.itemgetter(1))
+    result.reverse()
+    return [x[0] for x in result[:module_config['similar_line_tickers_limit']]]
