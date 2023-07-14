@@ -164,6 +164,7 @@ def find_tickers():
 
         if module_config['test_mode']:
             tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
+            _tickers = [tickers[i][0] for i in range(0, len(tickers))]
             # tickers
         else:
             if module_config['test_use_input_tickers']:
