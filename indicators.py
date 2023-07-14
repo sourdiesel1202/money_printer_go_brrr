@@ -119,11 +119,19 @@ def did_macd_alert(indicator_data,ticker,ticker_history, module_config):
 def did_sma_alert(indicator_data,ticker,ticker_history, module_config):
     if module_config['logging']:
         print(f"Checking SMA Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
-    if ((ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open) and ticker_history[-2].open < indicator_data[ticker_history[-2].timestamp]) or\
-            ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open) and ticker_history[-2].open > indicator_data[ticker_history[-2].timestamp]):
+    if (ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open)  or ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open)):
         return True
     else:
         return False
+
+def determine_sma_alert_type(indicator_data,ticker,ticker_history, module_config):
+    if ((ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open) and not (ticker_history[-2].close > indicator_data[ticker_history[-2].timestamp] and ticker_history[-2].low > indicator_data[ticker_history[-2].timestamp] and ticker_history[-2].close > ticker_history[-2].open)):
+        return AlertType.SMA_CONFIRMATION_UPWARD
+    elif ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open) and not (ticker_history[-2].close < indicator_data[ticker_history[-2].timestamp] and ticker_history[-2].low < indicator_data[ticker_history[-2].timestamp] and ticker_history[-2].close < ticker_history[-2].open)):
+        return AlertType.SMA_CONFIRMATION_DOWNWARD
+    else:
+        raise Exception(f"Could not determine SMA Direction for {ticker}")
+
 
 def did_golden_cross_alert(indicator_data,ticker,ticker_history, module_config):
     if module_config['logging']:
@@ -276,14 +284,3 @@ def determine_golden_cross_alert_type(indicator_data,ticker,ticker_history, modu
     else:
         raise Exception(f"Could not determine Golden Cross Alert for {ticker}")
 # def determine_death_cross_alert_type(indicator_data,ticker,ticker_history, module_config):
-def determine_sma_alert_type(indicator_data,ticker,ticker_history, module_config):
-    if ((ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low >
-         indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open) and
-        ticker_history[-2].open < indicator_data[ticker_history[-2].timestamp]):
-        return AlertType.SMA_CROSSOVER_UPWARD
-    elif ((ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].high <
-      indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open) and
-     ticker_history[-2].open > indicator_data[ticker_history[-2].timestamp]):
-        return AlertType.SMA_CROSSOVER_DOWNWARD
-    else:
-        raise Exception(f"Could not determine SMA Direction for {ticker}")

@@ -14,8 +14,8 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
         entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
         # print(f"{entry_date}: {ticker}| Open: {entry.open} High: {entry.high} Low: {entry.low} Close: {entry.close} Volume: {entry.volume}")
         if datetime.datetime.fromtimestamp(entry.timestamp / 1e3,
-                                           tz=ZoneInfo('US/Eastern')).hour >= 9 and datetime.datetime.fromtimestamp(
-                entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour <= 16:
+                                           tz=ZoneInfo('US/Eastern')).hour >= 10 and datetime.datetime.fromtimestamp(
+                entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour <= 15:
             history_data.append(entry)
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:")
     return history_data
