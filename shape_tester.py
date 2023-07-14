@@ -17,8 +17,8 @@ if __name__ == '__main__':
     # ticker_b = module_config['compare_ticker']
     for ticker_a in module_config['tickers']:
         for ticker_b in module_config['compare_tickers']:
-            ticker_history_a = load_ticker_history_raw(ticker_a, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000)
-            ticker_history_b = load_ticker_history_raw(ticker_b, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000)
+            ticker_history_a = load_ticker_history_raw(ticker_a, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000,module_config)
+            ticker_history_b = load_ticker_history_raw(ticker_b, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000, module_config)
             compare_tickers(ticker_a, ticker_history_a, ticker_b, ticker_history_b, module_config)
         # if module_config['run_concurrently']:
             # determine_line_similarity(1,2)

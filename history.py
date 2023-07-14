@@ -6,9 +6,27 @@ import pandas as pd
 from stockstats import wrap
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 
-def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500):
+class TickerHistory:
+    open = 0
+    close = 0
+    high = 0
+    low = 0
+    volume = 0
+    timestamp = 0
+    def __init__(self, open, close, high, low, volume, timestamp):
+        self.open = open
+        self.close = close
+        self.high = high
+        self.low = low
+        self.volume = volume
+        self.timestamp =timestamp
+def load_ticker_history_cached(ticker,module_config):
+    read_csv(f"{module_config['output_dir']}{ticker}.csv")
+def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False):
     # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
     # limit = 50000
+    if cached:
+        load_ticker_history_cached(ticker, module_config)
     history_data =  []
     for entry in client.list_aggs(ticker=ticker,multiplier = multiplier, timespan = timespan, from_ = from_, to = to, limit=50000, sort='asc'):
         entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
@@ -16,10 +34,11 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
         if datetime.datetime.fromtimestamp(entry.timestamp / 1e3,
                                            tz=ZoneInfo('US/Eastern')).hour >= 10 and datetime.datetime.fromtimestamp(
                 entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour <= 15:
-            history_data.append(entry)
+            history_data.append(TickerHistory(entry.open, entry.close,entry.high, entry.low, entry.volume, entry.timestamp))
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:")
     return history_data
-
+def write_ticker_history_cache(ticker, ticker_history, module_config):
+    write_csv()(f"{module_config['output_dir']}{ticker}.csv", )
 def load_ticker_history_csv(ticker, ticker_history):
 
     # rows = load_ticker_history_raw(ticker,client,1, "hour", today,today,5000)

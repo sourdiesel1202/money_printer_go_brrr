@@ -13,7 +13,7 @@ if __name__ == '__main__':
     client = polygon.RESTClient(api_key=module_config['api_key'])
     # ticker = "GE"
     for ticker in module_config['tickers']:
-        ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000)
+        ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000, module_config)
         if module_config['run_concurrently']:
             validate_ticker(module_config['position_type'],ticker,ticker_history, module_config)
         else:

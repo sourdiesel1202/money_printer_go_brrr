@@ -33,7 +33,7 @@ def process_tickers(tickers):
         try:
             print(f"Attempting to load ticker history for ${ticker}")
             ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],
-                                                     get_today(module_config, minus_days=365), today, 50000)
+                                                     get_today(module_config, minus_days=365), today, 50000, module_config)
             print(f"Loaded ticker history for ${ticker}")
             validate_ticker_history_integrity(ticker, ticker_history)
         except:

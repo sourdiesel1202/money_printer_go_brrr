@@ -26,6 +26,49 @@ from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker
 today =get_today(module_config)
 required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 
+
+def process_results(ticker_results):
+    _report_headers = ['timestamp','symbol','price','volume','long_validation', 'short_validation', 'pick_level', 'conditions_matched','alerts triggered', 'backtested']
+    for k in analyzed_backtest_keys:
+        _report_headers.append(k)
+    results = []
+    for k, v in ticker_results.items():
+        missing_key = False
+        for required_key in required_indicators:
+            missing_key = required_key not in v
+
+        if missing_key:
+            if module_config['logging']:
+                print(
+                    f"{k} is missing a required config: Found {[x for x in v.keys()]} Required: {required_indicators}")
+            continue
+
+        try:
+            cond_dict = {'macd': v['macd'], 'rsi': v['rsi'], 'sma': v['sma'], 'dmi': v['dmi'], 'adx': v['adx'],
+                         'golden_cross': v['golden_cross'], 'death_cross': v['death_cross']}
+            matched_conditions = []
+            for kk, vv in cond_dict.items():
+                if vv:
+                    matched_conditions.append(kk)
+            if len(matched_conditions) >= module_config['report_alert_min']:
+
+                results.append([datetime.datetime.fromtimestamp(v['latest'] / 1e3, tz=ZoneInfo('US/Eastern')).strftime(
+                    "%Y-%m-%d %H:%M:%S"), k, v['close'], v['volume'], v['long_validation'], v['short_validation']])
+                results[-1].append(len(matched_conditions))
+                results[-1].append(','.join(matched_conditions))
+                results[-1].append(','.join(v['directions']))
+                ##stub in backtest entries
+                results[-1].append(False)
+                for _k in analyzed_backtest_keys:
+                    results[-1].append('')
+        except:
+            print(f"Cannot process results for ticker {k}")
+            traceback.print_exc()
+
+    results.insert(0, _report_headers)
+    # new_results = reversed(list(sorted(results, key=lambda x: x[-2])))
+    # new
+    write_csv(f"{module_config['output_dir']}{os.getpid()}.csv", results)
 def build_ticker_results(ticker, ticker_results,ticker_history, client):
 
     sma = load_sma(ticker, ticker_history, module_config)
@@ -74,15 +117,12 @@ def process_tickers(tickers):
 
     client = polygon.RESTClient(api_key=module_config['api_key'])
     # _report_headers = ['timestamp','symbol','price','volume', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag','golden_cross_flag','death_cross_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
-    _report_headers = ['timestamp','symbol','price','volume','long_validation', 'short_validation', 'pick_level', 'conditions_matched','alerts triggered', 'backtested']
-    for k in analyzed_backtest_keys:
-        _report_headers.append(k)
     # ticker = "GE"
     # data_lines = read_csv(f"data/nyse.csv")
     # if module_config['logging']:
     # print(f"Loaded {len(data_lines) - 1} tickers on NYSE")
     ticker_results = {}
-    latest_entry = ""
+    # latest_entry = ""
 
     for i in range(0, len(tickers)):
 
@@ -97,7 +137,7 @@ def process_tickers(tickers):
 
             if module_config['logging']:
                 print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
-            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=365), today, 10000)
+            ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=365), today, 10000, module_config)
             test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
             if ticker_history[-1].volume < module_config['volume_limit'] or ticker_history[-1].close < module_config['price_limit']:
                 # if module_  config['logging']:
@@ -106,6 +146,7 @@ def process_tickers(tickers):
             # if latest_entry == "":
             latest_entry = ticker_history[-1].timestamp
             ticker_results[ticker]['volume'] = ticker_history[-1].volume
+            ticker_results[ticker]['latest'] = ticker_history[-1].timestamp
             ticker_results[ticker]['close'] = ticker_history[-1].close
 
             build_ticker_results(ticker,ticker_results,ticker_history, client)
@@ -115,45 +156,7 @@ def process_tickers(tickers):
             print(f"Cannot process ticker: {ticker}")
             del ticker_results[ticker]
     # results = [['symbol','macd_flag', 'rsi_flag', 'sma_flag', 'pick_level', 'conditions_matched']]
-    results = []
-    for k, v in ticker_results.items():
-        missing_key = False
-        for required_key in required_indicators:
-            missing_key = required_key not in v
-
-        if missing_key:
-            if module_config['logging']:
-                print(f"{k} is missing a required config: Found {[x for x in v.keys()]} Required: {required_indicators}")
-            continue
-
-        try:
-            cond_dict = {'macd':v['macd'],'rsi':v['rsi'], 'sma': v['sma'],'dmi': v['dmi'], 'adx': v['adx'], 'golden_cross': v['golden_cross'], 'death_cross': v['death_cross']}
-            matched_conditions = []
-            for kk, vv in cond_dict.items():
-                if vv:
-                    matched_conditions.append(kk)
-            if len(matched_conditions) >= module_config['report_alert_min']:
-
-
-                results.append([datetime.datetime.fromtimestamp(latest_entry / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S"),k,v['close'], v['volume'],v['long_validation'],v['short_validation']])
-                results[-1].append(len(matched_conditions))
-                results[-1].append(','.join(matched_conditions))
-                results[-1].append(','.join(v['directions']))
-                ##stub in backtest entries
-                results[-1].append(False)
-                for _k in analyzed_backtest_keys:
-                    results[-1].append('')
-        except:
-            print(f"Cannot process results for ticker {k}")
-            traceback.print_exc()
-    # new_results = []
-    # results.sort(key=lambda x:int(x[-2]))
-    # sorted(results, key=lambda x: x[-2])
-    # results.reverse()
-    results.insert(0,_report_headers  )
-    # new_results = reversed(list(sorted(results, key=lambda x: x[-2])))
-    # new
-    write_csv(f"{module_config['output_dir']}{os.getpid()}.csv", results)
+    process_results(ticker_results)
 def find_tickers():
     start_time = time.time()
     # n = module_config['process_load_size']
