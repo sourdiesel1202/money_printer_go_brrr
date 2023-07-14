@@ -83,3 +83,5 @@ def validate_ticker_history_integrity(ticker, ticker_history):
     else:
         print(f"${ticker}'s history data is valid")
     #     pass
+
+# def validate_line_similarity(ticker)

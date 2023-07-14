@@ -67,6 +67,8 @@ def calculate_percentage(x, y):
 def timestamp_to_datetime(timestamp):
     return datetime.datetime.fromtimestamp(timestamp / 1e3, tz=ZoneInfo('US/Eastern'))#.strftime("%Y-%m-%d %H:%M:%S")
 
+def human_readable_datetime(_d):
+    return _d.strftime("%Y-%m-%d %H:%M:%S")
 def process_list_concurrently(data, process_function, batch_size):
     '''
     Process a list concurrently

@@ -4,28 +4,13 @@ from zoneinfo import ZoneInfo
 from history import load_ticker_history_pd_frame, load_ticker_history_csv
 from stockstats import wrap
 from enums import *
+from shape import compare_tickers
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 
 def load_macd(ticker,ticker_history, module_config):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     return {'macd':df['macd'],'signal':df['macds'], 'histogram': df['macdh']}
-# def load_macd(ticker, client,module_config,  **kwargs):
-#     macd = client.get_macd(ticker=ticker, **kwargs)
-#     _macd = []
-#     for entry in macd.values:
-#         if module_config['logging']:
-#             if entry.value > entry.signal:
-#                 entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
-#                 # entry_date.tzinfo = ZoneInfo('US/Eastern')
-#                 if module_config['logging']:
-#                     print(f"{entry_date}: {ticker}: MACD {entry.value} was over signal {entry.signal}: histogram {entry.histogram}")
-#             else:
-#                 entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
-#                 # entry_date.tzinfo = ZoneInfo('US/Eastern')
-#                 if module_config['logging']:
-#                     print(f"{entry_date}: {ticker}: Signal {entry.signal} was over MACD {entry.value}: histogram {entry.histogram}")
-#         _macd.append(entry)
-#     return _macd
+
 def load_sma(ticker,ticker_history, module_config, window=0):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     if window >0:
@@ -288,3 +273,6 @@ def determine_golden_cross_alert_type(indicator_data,ticker,ticker_history, modu
     else:
         raise Exception(f"Could not determine Golden Cross Alert for {ticker}")
 # def determine_death_cross_alert_type(indicator_data,ticker,ticker_history, module_config):
+
+def has_matching_trend_with_ticker(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config):
+    return compare_tickers(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config) >= module_config['line_similarity_gt']
