@@ -84,11 +84,14 @@ def load_dmi_adx(ticker, ticker_history, module_config, **kwargs):
     # print(f"{datetime.datetime.fromtimestamp(ticker_history[1][-1] / 1e3, tz=ZoneInfo('US/Eastern'))} {ticker_history[1][0]}")
     df= wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     dmi= {"dmi+":df['pdi'],"dmi-":df['ndi'], "adx":df['adx']}
-    for i in reversed(range(0, len(ticker_history))):
-        if module_config['logging']:
-        # if True:
+    if module_config['logging']:
+        print(f"{datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: DMI+: {dmi['dmi+'][ticker_history[-1].timestamp]} DMI-:{dmi['dmi-'][ticker_history[-1].timestamp]} ADX: {dmi['adx'][ticker_history[-1].timestamp]}")
+        print(f"{datetime.datetime.fromtimestamp(ticker_history[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: DMI+: {dmi['dmi+'][ticker_history[0].timestamp]} DMI-:{dmi['dmi-'][ticker_history[0].timestamp]} ADX: {dmi['adx'][ticker_history[0].timestamp]}")
+    # for i in reversed(range(0, len(ticker_history))):
+    #     if module_config['logging']:
+    #     # if True:
 
-            print(f"{datetime.datetime.fromtimestamp(ticker_history[i].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: DMI+: {dmi['dmi+'][ticker_history[i].timestamp]} DMI-:{dmi['dmi-'][ticker_history[i].timestamp]} ADX: {dmi['adx'][ticker_history[i].timestamp]}")
+
     return dmi
 
 def did_macd_alert(indicator_data,ticker,ticker_history, module_config):

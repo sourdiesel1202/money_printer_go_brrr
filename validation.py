@@ -3,7 +3,7 @@ import json
 
 from functions import timestamp_to_datetime
 from enums import PositionType
-from indicators import load_sma
+from indicators import load_sma,load_macd, load_dmi_adx, load_rsi
 # from indicators import did_sma_alert, determine_sma_alert_type
 
 def validate_tickers(position_type, tickers, module_config, client):
@@ -15,12 +15,42 @@ def validate_ticker(position_type, ticker, ticker_history, module_config):
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Validating taking a {position_type} position in ${ticker}")
     #ok so we need to validate the position type against the indicators to ensure everything is valid to enter that type of position
     results ={
-        "sma":validate_sma(position_type, ticker, ticker_history, load_sma(ticker , ticker_history, module_config), module_config)
+        "sma":validate_sma(position_type, ticker, ticker_history, load_sma(ticker , ticker_history, module_config), module_config),
+        "macd":validate_macd(position_type, ticker, ticker_history, load_macd(ticker , ticker_history, module_config), module_config),
+        "dmi":validate_dmi(position_type, ticker, ticker_history, load_dmi_adx(ticker , ticker_history, module_config), module_config),
+        "adx":validate_adx(position_type, ticker, ticker_history, load_dmi_adx(ticker , ticker_history, module_config), module_config),
+        "rsi":validate_rsi(position_type, ticker, ticker_history, load_rsi(ticker , ticker_history, module_config), module_config)
 
     }
     # if module_config['logging']:
     print(json.dumps({k:str(v) for k,v in results.items()}))
     return results
+def validate_rsi(position_type, ticker, ticker_history, indicator_data, module_config):
+    if module_config['logging']:
+        print(f"{datetime.datetime.now()}:{ticker}: {timestamp_to_datetime(ticker_history[-1].timestamp).strftime('%Y-%m-%d %H:%M:%S')}: Close: {ticker_history[-1].close} RSI: {indicator_data[ticker_history[-1].timestamp]} ")
+    if position_type == PositionType.LONG:
+        return indicator_data[ticker_history[-1].timestamp] < module_config['rsi_overbought_threshold']-20
+    else:
+        return indicator_data[ticker_history[-1].timestamp] > module_config['rsi_oversold_threshold']+20
+def validate_adx(position_type, ticker, ticker_history, indicator_data, module_config):
+    if module_config['logging']:
+        print(f"{datetime.datetime.now()}:{ticker}: {timestamp_to_datetime(ticker_history[-1].timestamp).strftime('%Y-%m-%d %H:%M:%S')}: Close: {ticker_history[-1].close} ADX[current]: {indicator_data['adx'][ticker_history[-1].timestamp]} ADX[previous]-: {indicator_data['adx'][ticker_history[-2].timestamp]} ")
+    return indicator_data['adx'][ticker_history[-1].timestamp] > module_config['adx_threshold'] and indicator_data['adx'][ticker_history[-1].timestamp] > indicator_data['adx'][ticker_history[-2].timestamp]
+
+def validate_dmi(position_type, ticker, ticker_history, indicator_data, module_config):
+    if module_config['logging']:
+        print(f"{datetime.datetime.now()}:{ticker}: {timestamp_to_datetime(ticker_history[-1].timestamp).strftime('%Y-%m-%d %H:%M:%S')}: Close: {ticker_history[-1].close} DMI+: {indicator_data['dmi+'][ticker_history[-1].timestamp]} DMI-: {indicator_data['dmi-'][ticker_history[-1].timestamp]} ADX: {indicator_data['adx'][ticker_history[-1].timestamp]}")
+    if position_type == PositionType.LONG:
+        return indicator_data['dmi+'][ticker_history[-1].timestamp] > indicator_data['dmi-'][ticker_history[-1].timestamp] and indicator_data['dmi+'][ticker_history[-1].timestamp] > module_config['adx_threshold'] and indicator_data['adx'][ticker_history[-1].timestamp] > module_config['adx_threshold'] and indicator_data['adx'][ticker_history[-1].timestamp] > indicator_data['adx'][ticker_history[-2].timestamp]
+    else:
+        return indicator_data['dmi+'][ticker_history[-1].timestamp] < indicator_data['dmi-'][ticker_history[-1].timestamp] and indicator_data['dmi-'][ticker_history[-1].timestamp] > module_config['adx_threshold'] and indicator_data['adx'][ticker_history[-1].timestamp] > module_config['adx_threshold'] and indicator_data['adx'][ticker_history[-1].timestamp] > indicator_data['adx'][ticker_history[-2].timestamp]
+def validate_macd(position_type, ticker, ticker_history, indicator_data, module_config):
+    if module_config['logging']:
+        print(f"{datetime.datetime.now()}:{ticker}: {timestamp_to_datetime(ticker_history[-1].timestamp).strftime('%Y-%m-%d %H:%M:%S')}: Close: {ticker_history[-1].close} MACD: {indicator_data['macd'][ticker_history[-1].timestamp]} Signal: {indicator_data['signal'][ticker_history[-1].timestamp]}")
+    if position_type == PositionType.LONG:
+        return indicator_data['macd'][ticker_history[-1].timestamp] > indicator_data['signal'][ticker_history[-1].timestamp]
+    else:
+        return indicator_data['macd'][ticker_history[-1].timestamp] < indicator_data['signal'][ticker_history[-1].timestamp]
 def validate_sma(position_type, ticker, ticker_history, indicator_data, module_config):
     # if module_config['logging']:
     print(f"{datetime.datetime.now()}:{ticker}: {timestamp_to_datetime(ticker_history[-1].timestamp).strftime('%Y-%m-%d %H:%M:%S')}: Close: {ticker_history[-1].close} SMA: {indicator_data[ticker_history[-1].timestamp]}")
