@@ -15,7 +15,8 @@ from zoneinfo import ZoneInfo
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert,determine_sma_alert_type
 from indicators import determine_rsi_alert_type, determine_macd_alert_type,determine_adx_alert_type,determine_dmi_alert_type
 from indicators import  load_death_cross, load_golden_cross, determine_death_cross_alert_type,determine_golden_cross_alert_type, did_golden_cross_alert, did_death_cross_alert
-from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv
+from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv, \
+    clear_ticker_history_cache
 from functions import  load_module_config, read_csv, write_csv,combine_csvs, get_today
 from enums import  PositionType
 from validation import validate_ticker
@@ -163,6 +164,8 @@ def find_tickers():
     # if module_config['test_mode']:
     #     if not module_config['test_use_input_tickers']:
     #         tickers = read_csv(f"data/nyse.csv")
+    #rebuild cache on each run
+    clear_ticker_history_cache(module_config)
     if not module_config['test_mode'] or (module_config['test_mode'] and not module_config['test_use_input_tickers']):
 
         if module_config['test_mode']:
