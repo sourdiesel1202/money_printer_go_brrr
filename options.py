@@ -11,9 +11,6 @@ def calculate_price_change_for_entry(price_goal_change_type, position_type,asset
     #basically, how much does the price need to change before our bid is met
     #can't think of a better way to do this than by the penny
     # _tmp_iv =
-    _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
-    greeks = mibian.BS([asset_price, strike_price, 0, dte], volatility=_tmp_iv)
-    per_cent_delta = float(greeks.callDelta / 100 if position_type == PositionType.LONG else greeks.putDelta / 100)
 
     if price_goal_change_type   in [PriceGoalChangeType.ASSET_POINTS, PriceGoalChangeType.ASSET_PERCENTAGE, PriceGoalChangeType.ASSET_SET_PRICE]:
         #ok so basically we need to figure out what the bid is at our target asking price
@@ -22,7 +19,7 @@ def calculate_price_change_for_entry(price_goal_change_type, position_type,asset
         elif price_goal_change_type == PriceGoalChangeType.ASSET_PERCENTAGE:
             p = float(float(price_goal / 100) * asset_price)
             print(f"{price_goal} percent of ${asset_price}: ${p}")
-            _asset_price = asset_price - p
+            _asset_price = asset_price - p*(1 if position_type == PositionType.LONG else -1)
         else:
             _asset_price = price_goal
         _tmp_price = asset_price
@@ -41,6 +38,9 @@ def calculate_price_change_for_entry(price_goal_change_type, position_type,asset
         bid = _tmp_ask
         # _tmp_price = _asset_price
     else:
+        _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
+        greeks = mibian.BS([asset_price, strike_price, 0, dte], volatility=_tmp_iv)
+        per_cent_delta = float(greeks.callDelta / 100 if position_type == PositionType.LONG else greeks.putDelta / 100)
 
         #basically for all cases but asset changes, we can more ore less re-use the existing code, we just need to set our bid accordingly
         # if price_goal_change_type == PriceGoalChangeType.OPTION_SET_PRICE:
@@ -110,7 +110,7 @@ def calculate_price_change_for_exit(price_goal_change_type, position_type,asset_
         elif price_goal_change_type == PriceGoalChangeType.ASSET_PERCENTAGE:
             p = float(float(price_goal / 100) * asset_price)
             print(f"{price_goal} percent of ${asset_price}: ${p}")
-            _asset_price = asset_price - p
+            _asset_price = asset_price - p*(-1 if position_type == PositionType.LONG else 1)
         else:
             _asset_price = price_goal
         _tmp_price = asset_price
