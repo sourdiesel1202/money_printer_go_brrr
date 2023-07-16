@@ -1,4 +1,3 @@
-Loading config file for options_tester
 ## Testing SHORT positions
 
 
@@ -270,6 +269,3 @@ bid: 0.39
 ask: 0.33
 greeks: {'delta': 0.5051378145169781, 'theta': -0.01795881768050738, 'gamma': 0.40276124447748024, 'vega': 0.010373749864268469, 'implied_violatility': 38.0859375}
 ```
-
-
-Completed testing  of (F) CALL in 0 minutes and 1 seconds
