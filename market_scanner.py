@@ -30,7 +30,7 @@ required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
 
 def process_results(ticker_results):
     #this gets called after all the ticker data is loaded, thus we can use cached data
-    _report_headers = ['timestamp','symbol','price','volume','long_validation', 'short_validation', 'pick_level', 'conditions_matched','alerts triggered','similar_tickers', 'backtested']
+    _report_headers = ['timestamp','symbol','price','volume','long_validation', 'short_validation', 'pick_level', 'conditions_matched','alerts_triggered','similar_tickers', 'backtested']
     for k in analyzed_backtest_keys:
         _report_headers.append(k)
     results = []
@@ -172,7 +172,10 @@ def load_ticker_histories(_tickers):
     failures = [['symbol']]
     for ticker in _tickers:
         try:
+            # if not module_config['test_mode']:
             _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), today, limit=50000, module_config=_module_config)
+            # else:
+                # _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), 11, limit=50000, module_config=_module_config)
             successes.append(ticker)
         except:
             # traceback.print_exc()
@@ -234,7 +237,10 @@ def find_tickers():
     if not module_config['test_mode'] or (module_config['test_mode'] and not module_config['test_use_input_tickers']):
 
         if module_config['test_mode']:
-            tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
+            if module_config['test_use_test_population']:
+                tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
+            else:
+                tickers = read_csv(f"data/nyse.csv")[1:]
             _tickers = [tickers[i][0] for i in range(0, len(tickers))]
             # tickers
         else:
@@ -246,7 +252,7 @@ def find_tickers():
                 _tickers = [tickers[i][0] for i in range(0, len(tickers))]
     else:
         _tickers = module_config['tickers']
-    client = polygon.RESTClient(api_key=module_config['api_key'])
+    # client = polygon.RESTClient(api_key=module_config['api_key'])
 
     # del tickers[0]
         # tickers =
@@ -280,7 +286,7 @@ def run_backtests(results, module_config):
                     combined[i][combined[0].index('backtested')] = True
                     # if module_config['logging']:
                     print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('reasons')].split(','))}, running backtest for {module_config['backtest_days']} days")
-                    backtest_ticker_concurrently(combined[i][combined[0].index('reasons')].split(','), combined[i][combined[0].index('symbol')],
+                    backtest_ticker_concurrently(combined[i][combined[0].index('alerts_triggered')].split(','), combined[i][combined[0].index('symbol')],
                                                  load_ticker_history_cached(combined[i][combined[0].index('symbol')], module_config), module_config)
                     backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')], module_config))
                     for _backtest_key in analyzed_backtest_keys:

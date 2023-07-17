@@ -23,7 +23,8 @@ def validate_ticker(position_type, ticker, ticker_history, module_config):
 
     }
     # if module_config['logging']:
-    print(json.dumps({k:str(v) for k,v in results.items()}))
+    if module_config['logging']:
+        print(json.dumps({k:str(v) for k,v in results.items()}))
     return results
 def validate_rsi(position_type, ticker, ticker_history, indicator_data, module_config):
     if module_config['logging']:
@@ -52,8 +53,8 @@ def validate_macd(position_type, ticker, ticker_history, indicator_data, module_
     else:
         return indicator_data['macd'][ticker_history[-1].timestamp] < indicator_data['signal'][ticker_history[-1].timestamp]
 def validate_sma(position_type, ticker, ticker_history, indicator_data, module_config):
-    # if module_config['logging']:
-    print(f"{datetime.datetime.now()}:{ticker}: {timestamp_to_datetime(ticker_history[-1].timestamp).strftime('%Y-%m-%d %H:%M:%S')}: Close: {ticker_history[-1].close} SMA: {indicator_data[ticker_history[-1].timestamp]}")
+    if module_config['logging']:
+        print(f"{datetime.datetime.now()}:{ticker}: {timestamp_to_datetime(ticker_history[-1].timestamp).strftime('%Y-%m-%d %H:%M:%S')}: Close: {ticker_history[-1].close} SMA: {indicator_data[ticker_history[-1].timestamp]}")
     if position_type == PositionType.LONG:
         return (ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open)
 

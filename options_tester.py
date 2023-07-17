@@ -60,7 +60,7 @@ def run_options_test(test_positions, module_config):
             # i = i+1
             print('```\n')
 
-            print(f"\n#### TESTING POSITION {i}/{len(positions)}(EXIT)\n In order to exit a {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['ticker']})  with goal {position['ask_price_goal_type']} of {ask_price_string} (current ask: {module_config['ask']}, current asset price: {module_config['asset_price']}), the following price change needs to occur\n")
+            print(f"\n#### TESTING POSITION {i}/{len(positions)} (EXIT)\n In order to exit a {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['ticker']})  with goal {position['ask_price_goal_type']} of {ask_price_string} (current ask: {module_config['ask']}, current asset price: {module_config['asset_price']}), the following price change needs to occur\n")
             result = calculate_price_change_for_exit(position['ask_price_goal_type'], position_type,
                                                       module_config['asset_price'], module_config['strike_price'],
                                                       position['ask_price_goal'], module_config['ask'],

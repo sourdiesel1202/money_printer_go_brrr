@@ -288,10 +288,12 @@ def has_matching_trend_with_ticker(ticker_a, ticker_history_a,ticker_b, ticker_h
 def load_ticker_similar_trends(ticker, module_config):
     ticker_history = load_ticker_history_cached(ticker, module_config)
     result = []
+    # if module_config['logging']:
+    print(f"{human_readable_datetime(datetime.datetime.now())}:${ticker}: Performing line comparison of ${ticker}")
     for compare_ticker in [x.split(".csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]:
         try:
-            # if module_config['logging']:
-            print(f"{human_readable_datetime(datetime.datetime.now())}:${ticker}: Performing line comparison of ${ticker} <==> ${compare_ticker}")
+            if module_config['logging']:
+                print(f"{human_readable_datetime(datetime.datetime.now())}:${ticker}: Performing line comparison of ${ticker} <==> ${compare_ticker}")
             similarity = compare_tickers(ticker, ticker_history, compare_ticker, load_ticker_history_cached(compare_ticker, module_config), module_config)
             if similarity >= module_config['line_similarity_gt']:
                 result.append([compare_ticker, similarity])

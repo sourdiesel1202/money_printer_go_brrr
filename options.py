@@ -27,7 +27,7 @@ def calculate_price_change_for_entry(price_goal_change_type, position_type,asset
         _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
         greeks = mibian.BS([_tmp_price, strike_price, 0, dte], volatility=_tmp_iv)
         per_cent_delta = float(greeks.callDelta if position_type == PositionType.LONG else greeks.putDelta )/ 100
-        while round(_tmp_price,2) != round(_asset_price,2):# and _tmp_ask > 0.05: #stop at a 0.05 ask, etrade order price min increment lol
+        while round(_tmp_price,2) <= round(_asset_price,2):# and _tmp_ask > 0.05: #stop at a 0.05 ask, etrade order price min increment lol
             if round(_tmp_price, 2) == round(_asset_price, 2):
                 break
             _tmp_price = _tmp_price -  0.01 *(1 if position_type == PositionType.LONG else -1) # one send decrements
@@ -62,8 +62,8 @@ def calculate_price_change_for_entry(price_goal_change_type, position_type,asset
     #     raise Exception(f"Just slap the ask {ask}, it's less than your bid {bid}")
 
     # while _tmp_ask > bid and _tmp_ask > 0.05: #stop at a 0.05 ask, etrade order price min increment lol
-    while round(_tmp_ask,2) >= round(bid,2) and _tmp_ask > 0.05: #stop at a 0.05 ask, etrade order price min increment lol
-        if round(_tmp_ask,2) <= round(bid,2):
+    while _tmp_ask >= bid and _tmp_ask > 0.05: #stop at a 0.05 ask, etrade order price min increment lol
+        if _tmp_ask <= bid:
             break
         _tmp_price = _tmp_price -  0.01 *( 1 if position_type == PositionType.LONG else -1)
         _tmp_ask = _tmp_ask - per_cent_delta *(1 if position_type == PositionType.LONG else -1)
