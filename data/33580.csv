@@ -1,0 +1,11 @@
+timestamp,symbol,price,volume,long_validation,short_validation,pick_level,conditions_matched,alerts_triggered,similar_tickers,backtested,likelihood_long_3,likelihood_short_3,likelihood_long_5,likelihood_short_5,likelihood_long_7,likelihood_short_7,likelihood_long_9,likelihood_short_9,likelihood_long_ntdo,likelihood_short_ntdo,likelihood_long_ntdc,likelihood_short_ntdc,average_price_increase_percentage,average_price_decrease_percentage
+2023-07-17 10:00:00,IBN,23.745,378627.0,"macd,dmi,adx","adx,rsi",2,"macd,adx","MACD_MACD_CROSS_SIGNAL,ADX_THRESHOLD_UPWARD","BCS,NX,STWD,TKC,MRC",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,PMT,13.655,51157.0,"sma,rsi","macd,rsi",2,"sma,dmi","DMIPLUS_CROSSOVER_DMINEG,SMA_CONFIRMATION_UPWARD","REX,BTZ,FLO,MQY,CIG",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,BSAC,19.4186,20019.0,rsi,"macd,rsi",2,"macd,dmi","MACD_SIGNAL_CROSS_MACD,DMINEG_CROSSOVER_DMIPLUS","PPL,NWN,AGI,EGO,PFS",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,FE,39.42,145008.0,rsi,"sma,macd,rsi",3,"macd,sma,dmi","MACD_SIGNAL_CROSS_MACD,DMINEG_CROSSOVER_DMIPLUS,SMA_CONFIRMATION_DOWNWARD","PPL,NWN,NI,AGI,EGO",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,JPM,151.605,1544406.0,"sma,macd,dmi,adx","adx,rsi",3,"macd,sma,adx","MACD_MACD_CROSS_SIGNAL,ADX_THRESHOLD_UPWARD,SMA_CONFIRMATION_UPWARD","JPM,MAN",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,ABT,107.22,488185.0,"macd,rsi","sma,rsi",2,"sma,dmi","DMINEG_CROSSOVER_DMIPLUS,SMA_CONFIRMATION_DOWNWARD","ABT,AFB,SCU,KMB,JNJ",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,PFSI,75.3925,180633.0,"sma,macd,dmi,adx","adx,rsi",3,"macd,sma,adx","MACD_MACD_CROSS_SIGNAL,ADX_THRESHOLD_UPWARD,SMA_CONFIRMATION_UPWARD","PFSI,MAN",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,DHR,237.535,344465.0,rsi,"macd,rsi",2,"macd,dmi","MACD_SIGNAL_CROSS_MACD,DMINEG_CROSSOVER_DMIPLUS",DHR,False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,MCK,411.21,68275.0,"sma,macd,rsi",rsi,2,"sma,dmi","DMIPLUS_CROSSOVER_DMINEG,SMA_CONFIRMATION_UPWARD",MCK,False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,VMW,158.515,152938.0,"sma,dmi,adx","macd,adx,rsi",2,"sma,adx","ADX_THRESHOLD_UPWARD,SMA_CONFIRMATION_UPWARD",VMW,False,,,,,,,,,,,,,,

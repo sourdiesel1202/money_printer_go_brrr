@@ -1,0 +1,12 @@
+timestamp,symbol,price,volume,long_validation,short_validation,pick_level,conditions_matched,alerts_triggered,similar_tickers,backtested,likelihood_long_3,likelihood_short_3,likelihood_long_5,likelihood_short_5,likelihood_long_7,likelihood_short_7,likelihood_long_9,likelihood_short_9,likelihood_long_ntdo,likelihood_short_ntdo,likelihood_long_ntdc,likelihood_short_ntdc,average_price_increase_percentage,average_price_decrease_percentage
+2023-07-17 10:00:00,RQI,11.8884,30949.0,rsi,"sma,macd,rsi",2,"sma,dmi","DMINEG_CROSSOVER_DMIPLUS,SMA_CONFIRMATION_DOWNWARD","ARDC,SPXX,EDF,BCS,TRMR",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,BAX,46.505,272541.0,rsi,"sma,macd,rsi",2,"macd,sma","MACD_SIGNAL_CROSS_MACD,SMA_CONFIRMATION_DOWNWARD","BAX,DLNG,PIM,BF.A,AFB",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,LMT,471.195,182632.0,"sma,macd",rsi,3,"macd,sma,dmi","MACD_MACD_CROSS_SIGNAL,DMIPLUS_CROSSOVER_DMINEG,SMA_CONFIRMATION_UPWARD",LMT,False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,UNM,47.82,85397.0,"sma,macd,rsi",rsi,3,"macd,sma,dmi","MACD_MACD_CROSS_SIGNAL,DMIPLUS_CROSSOVER_DMINEG,SMA_CONFIRMATION_UPWARD","UNM,PIM,AFB,GHI,SGU",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,KEYS,169.5553,66077.0,"sma,rsi","macd,rsi",2,"sma,dmi","DMIPLUS_CROSSOVER_DMINEG,SMA_CONFIRMATION_UPWARD",KEYS,False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,BMY,61.895,910123.0,"adx,rsi","macd,dmi,adx",2,"macd,adx","MACD_SIGNAL_CROSS_MACD,ADX_THRESHOLD_UPWARD","BMY,HST,SHO,RLJ,PEB",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,L,60.3,33025.0,"sma,rsi","macd,rsi",2,"sma,dmi","DMIPLUS_CROSSOVER_DMINEG,SMA_CONFIRMATION_UPWARD","L,PIM,AFB,GHI,NTG",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,ADC,65.89,55555.0,"sma,macd,rsi",rsi,2,"macd,sma","MACD_MACD_CROSS_SIGNAL,SMA_CONFIRMATION_UPWARD","NNN,ADC,MYD,JLS,BGX",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,AEP,86.0,273274.0,rsi,"sma,macd,rsi",2,"sma,dmi","DMINEG_CROSSOVER_DMIPLUS,SMA_CONFIRMATION_DOWNWARD","AEP,SDRL,CPT,SLB,ITT",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,STWD,20.79,440573.0,"sma,dmi,adx","macd,adx,rsi",2,"sma,adx","ADX_THRESHOLD_UPWARD,SMA_CONFIRMATION_UPWARD","ARDC,RGP,BUI,ACRE,STWD",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,PPL,26.595,561905.0,rsi,"macd,rsi",2,"macd,dmi","MACD_SIGNAL_CROSS_MACD,DMINEG_CROSSOVER_DMIPLUS","PPL,BCS,TRMR,MRC,KEY",False,,,,,,,,,,,,,,

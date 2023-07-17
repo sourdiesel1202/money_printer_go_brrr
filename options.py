@@ -24,7 +24,10 @@ def calculate_price_change_for_entry(price_goal_change_type, position_type,asset
             _asset_price = price_goal
         _tmp_price = asset_price
         _tmp_ask = ask
-        _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+        if position_type == PositionType.LONG:
+            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+        else:
+            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], putPrice=_tmp_ask).impliedVolatility
         greeks = mibian.BS([_tmp_price, strike_price, 0, dte], volatility=_tmp_iv)
         per_cent_delta = float(greeks.callDelta if position_type == PositionType.LONG else greeks.putDelta )/ 100
         while round(_tmp_price,2) <= round(_asset_price,2):# and _tmp_ask > 0.05: #stop at a 0.05 ask, etrade order price min increment lol
@@ -32,13 +35,19 @@ def calculate_price_change_for_entry(price_goal_change_type, position_type,asset
                 break
             _tmp_price = _tmp_price -  0.01 *(1 if position_type == PositionType.LONG else -1) # one send decrements
             _tmp_ask = _tmp_ask - per_cent_delta * (1 if position_type == PositionType.LONG else -1)
-            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+            if position_type == PositionType.LONG:
+                _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+            else:
+                _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], putPrice=_tmp_ask).impliedVolatility
             greeks = mibian.BS([_tmp_price, strike_price, 0, dte], volatility=_tmp_iv)
             per_cent_delta = float(greeks.callDelta if position_type == PositionType.LONG else greeks.putDelta )/ 100
         bid = _tmp_ask
         # _tmp_price = _asset_price
     else:
-        _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
+        if position_type == PositionType.LONG:
+            _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
+        else:
+            _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], putPrice=ask).impliedVolatility
         greeks = mibian.BS([asset_price, strike_price, 0, dte], volatility=_tmp_iv)
         per_cent_delta = float(greeks.callDelta / 100 if position_type == PositionType.LONG else greeks.putDelta / 100)
 
@@ -67,7 +76,10 @@ def calculate_price_change_for_entry(price_goal_change_type, position_type,asset
             break
         _tmp_price = _tmp_price -  0.01 *( 1 if position_type == PositionType.LONG else -1)
         _tmp_ask = _tmp_ask - per_cent_delta *(1 if position_type == PositionType.LONG else -1)
-        _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+        if position_type == PositionType.LONG:
+            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+        else:
+            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], putPrice=_tmp_ask).impliedVolatility
         greeks = mibian.BS([_tmp_price, strike_price, 0, dte], volatility=_tmp_iv)
         per_cent_delta = float(greeks.callDelta if position_type == PositionType.LONG else greeks.putDelta ) /100
 
@@ -99,10 +111,14 @@ def calculate_price_change_for_exit(price_goal_change_type, position_type,asset_
     #basically, how much does the price need to change before our bid is met
     #can't think of a better way to do this than by the penny
     # _tmp_iv =
-    _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
+    if position_type == PositionType.LONG:
+        _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
+    else:
+        _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], putPrice=ask).impliedVolatility
+    # _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
     greeks = mibian.BS([asset_price, strike_price, 0, dte], volatility=_tmp_iv)
     per_cent_delta = float(greeks.callDelta / 100 if position_type == PositionType.LONG else greeks.putDelta / 100)
-
+    # _ticker_price_change_value = (0.1/100) * asset_price
     if price_goal_change_type   in [PriceGoalChangeType.ASSET_POINTS, PriceGoalChangeType.ASSET_PERCENTAGE, PriceGoalChangeType.ASSET_SET_PRICE]:
         #ok so basically we need to figure out what the bid is at our target asking price
         if price_goal_change_type == PriceGoalChangeType.ASSET_POINTS:
@@ -115,7 +131,11 @@ def calculate_price_change_for_exit(price_goal_change_type, position_type,asset_
             _asset_price = price_goal
         _tmp_price = asset_price
         _tmp_ask = ask
-        _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+        if position_type == PositionType.LONG:
+            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+        else:
+            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], putPrice=_tmp_ask).impliedVolatility
+        # _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
         greeks = mibian.BS([_tmp_price, strike_price, 0, dte], volatility=_tmp_iv)
         per_cent_delta = float(greeks.callDelta if position_type == PositionType.LONG else greeks.putDelta )/ 100
         while round(_asset_price,2) != round(_tmp_price,2):
@@ -124,7 +144,10 @@ def calculate_price_change_for_exit(price_goal_change_type, position_type,asset_
             #     break
             _tmp_price = _tmp_price - 0.01 * (-1 if position_type == PositionType.LONG else 1)  # one send decrements
             _tmp_ask = _tmp_ask - per_cent_delta * (-1 if position_type == PositionType.LONG else 1)
-            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+            if position_type == PositionType.LONG:
+                _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+            else:
+                _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], putPrice=_tmp_ask).impliedVolatility
             greeks = mibian.BS([_tmp_price, strike_price, 0, dte], volatility=_tmp_iv)
             per_cent_delta = float(greeks.callDelta if position_type == PositionType.LONG else greeks.putDelta )/ 100
         bid = _tmp_ask
@@ -156,12 +179,15 @@ def calculate_price_change_for_exit(price_goal_change_type, position_type,asset_
     # while (round(_tmp_ask,2) < round(bid,2) if position_type == PositionType.LONG else round(bid,2) < round(_tmp_ask,2)):
     while _tmp_ask <= bid:# and _tmp_ask > 0.05: #stop at a 0.05 ask, etrade order price min increment lol
 
-
+        # print(_tmp_price)
         if _tmp_ask >= bid:
             break
         _tmp_price = _tmp_price - 0.01 * (-1 if position_type == PositionType.LONG else 1)
         _tmp_ask = _tmp_ask - per_cent_delta * (-1 if position_type == PositionType.LONG else 1)
-        _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+        if position_type == PositionType.LONG:
+            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], callPrice=_tmp_ask).impliedVolatility
+        else:
+            _tmp_iv = mibian.BS([_tmp_price, strike_price, 0, dte], putPrice=_tmp_ask).impliedVolatility
         greeks = mibian.BS([_tmp_price, strike_price, 0, dte], volatility=_tmp_iv)
         per_cent_delta = float(greeks.callDelta if position_type == PositionType.LONG else greeks.putDelta ) /100
 

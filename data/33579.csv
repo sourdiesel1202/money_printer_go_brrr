@@ -1,0 +1,9 @@
+timestamp,symbol,price,volume,long_validation,short_validation,pick_level,conditions_matched,alerts_triggered,similar_tickers,backtested,likelihood_long_3,likelihood_short_3,likelihood_long_5,likelihood_short_5,likelihood_long_7,likelihood_short_7,likelihood_long_9,likelihood_short_9,likelihood_long_ntdo,likelihood_short_ntdo,likelihood_long_ntdc,likelihood_short_ntdc,average_price_increase_percentage,average_price_decrease_percentage
+2022-08-02 15:00:00,MTOR,36.49,265500.0,"dmi,adx","macd,adx,rsi",2,"macd,adx","MACD_SIGNAL_CROSS_MACD,ADX_THRESHOLD_UPWARD","MTOR,NPTN",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,PNM,45.65,28456.0,rsi,"sma,macd,rsi",2,"sma,dmi","DMINEG_CROSSOVER_DMIPLUS,SMA_CONFIRMATION_DOWNWARD","ARDC,PPL,RGP,BCS,TRMR",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,SSD,147.7,57874.0,"sma,macd,dmi,adx","adx,rsi",2,"macd,adx","MACD_MACD_CROSS_SIGNAL,ADX_THRESHOLD_UPWARD",SSD,False,,,,,,,,,,,,,,
+2023-03-10 15:00:00,IVH,11.17,217235.0,"adx,rsi","sma,macd,dmi,adx",2,"rsi,adx","RSI_OVERSOLD,ADX_THRESHOLD_UPWARD","MGU,IVH,DDF",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,WFC,44.68,2710998.0,"sma,macd,dmi,adx","adx,rsi",3,"macd,sma,adx","MACD_MACD_CROSS_SIGNAL,ADX_THRESHOLD_UPWARD,SMA_CONFIRMATION_UPWARD","WFC,GRP.U,BF.A,SCU,USPH",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,GD,216.75,56012.0,"sma,rsi","macd,rsi",2,"sma,dmi","DMIPLUS_CROSSOVER_DMINEG,SMA_CONFIRMATION_UPWARD","GD,OXM",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,CNP,29.79,228427.0,rsi,"sma,macd,rsi",2,"sma,dmi","DMINEG_CROSSOVER_DMIPLUS,SMA_CONFIRMATION_DOWNWARD","KEY,MEI,AES,NI,HMC",False,,,,,,,,,,,,,,
+2023-07-17 10:00:00,PANW,246.78,480122.0,"sma,macd,rsi",rsi,2,"sma,dmi","DMIPLUS_CROSSOVER_DMINEG,SMA_CONFIRMATION_UPWARD",PANW,False,,,,,,,,,,,,,,

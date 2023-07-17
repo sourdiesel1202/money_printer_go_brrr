@@ -285,7 +285,7 @@ def run_backtests(results, module_config):
                 try:
                     combined[i][combined[0].index('backtested')] = True
                     # if module_config['logging']:
-                    print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('reasons')].split(','))}, running backtest for {module_config['backtest_days']} days")
+                    print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('alerts_triggered')].split(','))}, running backtest for {module_config['backtest_days']} days")
                     backtest_ticker_concurrently(combined[i][combined[0].index('alerts_triggered')].split(','), combined[i][combined[0].index('symbol')],
                                                  load_ticker_history_cached(combined[i][combined[0].index('symbol')], module_config), module_config)
                     backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')], module_config))
