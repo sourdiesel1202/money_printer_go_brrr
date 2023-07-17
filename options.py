@@ -110,7 +110,7 @@ def calculate_price_change_for_exit(price_goal_change_type, position_type,asset_
         elif price_goal_change_type == PriceGoalChangeType.ASSET_PERCENTAGE:
             p = float(float(price_goal / 100) * asset_price)
             print(f"{price_goal} percent of ${asset_price}: ${p}")
-            _asset_price = asset_price - p*(-1 if position_type == PositionType.LONG else 1)
+            _asset_price = asset_price - p *(-1 if position_type == PositionType.LONG else 1)
         else:
             _asset_price = price_goal
         _tmp_price = asset_price
@@ -134,11 +134,13 @@ def calculate_price_change_for_exit(price_goal_change_type, position_type,asset_
         #basically for all cases but asset changes, we can more ore less re-use the existing code, we just need to set our bid accordingly
         # if price_goal_change_type == PriceGoalChangeType.OPTION_SET_PRICE:
         if price_goal_change_type == PriceGoalChangeType.OPTION_TICK:
-            bid = ask - price_goal
+            bid = ask + price_goal
         elif price_goal_change_type == PriceGoalChangeType.OPTION_PERCENTAGE:
-            p = float(float(price_goal/100)*ask)
+            p = float(float(price_goal/100)*ask)# * (-1 if position_type == PositionType.LONG else 1 )
             print(f"{price_goal} percent of ${strike_price} {position_type} Option priced at ${ask}: ${p}")
-            bid  = ask -p
+            bid  = ask +p
+            pass
+            # _tmp_ask =
         else:
             bid = price_goal
 

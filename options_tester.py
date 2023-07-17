@@ -40,18 +40,18 @@ def run_options_test(test_positions, module_config):
 
         i = 1
         for position in positions:
-            if 'PERCENT' in position['price_goal_type']:
+            if 'PERCENT' in position['bid_price_goal_type']:
                 bid_price_string = f"{position['bid_price_goal']}%"
             else:
                 bid_price_string = f"${position['bid_price_goal']}"
 
-            if 'PERCENT' in position['price_goal_type']:
+            if 'PERCENT' in position['ask_price_goal_type']:
                 ask_price_string = f"{position['ask_price_goal']}%"
             else:
                 ask_price_string = f"${position['ask_price_goal']}"
             #ok so we enter the position first
-            print(f"\n#### TESTING POSITION {i}/{len(positions)} (ENTRY)\n In order to enter a {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['ticker']}) at bid price with goal {position['price_goal_type']} of {bid_price_string} (current ask: {module_config['ask']}, current asset price: {module_config['asset_price']}), the following price change needs to occur\n")
-            result = calculate_price_change_for_entry(position['price_goal_type'], position_type,
+            print(f"\n#### TESTING POSITION {i}/{len(positions)} (ENTRY)\n In order to enter a {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['ticker']}) with goal {position['bid_price_goal_type']} of {bid_price_string} (current ask: {module_config['ask']}, current asset price: {module_config['asset_price']}), the following price change needs to occur\n")
+            result = calculate_price_change_for_entry(position['bid_price_goal_type'], position_type,
                                                      module_config['asset_price'], module_config['strike_price'],
                                                      position['bid_price_goal'], module_config['ask'],
                                                      calculate_dte(module_config['expiration_date']))
@@ -60,8 +60,8 @@ def run_options_test(test_positions, module_config):
             # i = i+1
             print('```\n')
 
-            print(f"\n#### TESTING POSITION {i}/{len(positions)}(EXIT)\n In order to exit a {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['ticker']}) at bid price with goal {position['price_goal_type']} of {ask_price_string} (current ask: {module_config['ask']}, current asset price: {module_config['asset_price']}), the following price change needs to occur\n")
-            result = calculate_price_change_for_exit(position['price_goal_type'], position_type,
+            print(f"\n#### TESTING POSITION {i}/{len(positions)}(EXIT)\n In order to exit a {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['ticker']})  with goal {position['ask_price_goal_type']} of {ask_price_string} (current ask: {module_config['ask']}, current asset price: {module_config['asset_price']}), the following price change needs to occur\n")
+            result = calculate_price_change_for_exit(position['ask_price_goal_type'], position_type,
                                                       module_config['asset_price'], module_config['strike_price'],
                                                       position['ask_price_goal'], module_config['ask'],
                                                       calculate_dte(module_config['expiration_date']))
@@ -73,29 +73,36 @@ def run_options_test(test_positions, module_config):
 if __name__ == '__main__':
     start_time = time.time()
 
+    #doing this with $15 F calls for 07/28
     test_positions = {
         PositionType.SHORT:[
-            {"price_goal_type": PriceGoalChangeType.ASSET_SET_PRICE, "bid_price_goal": 15.05, "ask_price_goal": 14.82},
-            {"price_goal_type": PriceGoalChangeType.ASSET_PERCENTAGE, "bid_price_goal": 0.6, "ask_price_goal": 0.8},
-            {"price_goal_type": PriceGoalChangeType.OPTION_SET_PRICE, "bid_price_goal": 0.35, "ask_price_goal": 0.45},
-            {"price_goal_type": PriceGoalChangeType.OPTION_TICK, "bid_price_goal": 0.05, "ask_price_goal": 0.15},
-            {"price_goal_type": PriceGoalChangeType.OPTION_PERCENTAGE, "bid_price_goal": 10, "ask_price_goal": 15}
+            {"bid_price_goal_type": PriceGoalChangeType.ASSET_SET_PRICE,"ask_price_goal_type": PriceGoalChangeType.ASSET_SET_PRICE, "bid_price_goal": 15.05, "ask_price_goal": 14.82},
+            {"bid_price_goal_type": PriceGoalChangeType.ASSET_PERCENTAGE,"ask_price_goal_type": PriceGoalChangeType.ASSET_PERCENTAGE, "bid_price_goal": 0.6, "ask_price_goal": 0.8},
+            {"ask_price_goal_type": PriceGoalChangeType.OPTION_SET_PRICE,"bid_price_goal_type": PriceGoalChangeType.OPTION_SET_PRICE, "bid_price_goal": 0.35, "ask_price_goal": 0.45},
+            {"ask_price_goal_type": PriceGoalChangeType.OPTION_TICK,"bid_price_goal_type": PriceGoalChangeType.OPTION_TICK, "bid_price_goal": 0.05, "ask_price_goal": 0.15},
+            {"ask_price_goal_type": PriceGoalChangeType.OPTION_PERCENTAGE,"bid_price_goal_type": PriceGoalChangeType.OPTION_PERCENTAGE, "bid_price_goal": 10, "ask_price_goal": 15}
 
         ],
         PositionType.LONG:[
-            {"price_goal_type": PriceGoalChangeType.ASSET_SET_PRICE, "bid_price_goal": 14.88, "ask_price_goal": 15.09},
-            {"price_goal_type": PriceGoalChangeType.ASSET_PERCENTAGE, "bid_price_goal": 0.6, "ask_price_goal": 0.8},
-            {"price_goal_type": PriceGoalChangeType.OPTION_SET_PRICE, "bid_price_goal": 0.35, "ask_price_goal": 0.45},
-            {"price_goal_type": PriceGoalChangeType.OPTION_TICK, "bid_price_goal": 0.05, "ask_price_goal": 0.15},
-            {"price_goal_type": PriceGoalChangeType.OPTION_PERCENTAGE, "bid_price_goal": 10, "ask_price_goal": 15}
+            {"bid_price_goal_type": PriceGoalChangeType.ASSET_SET_PRICE,"ask_price_goal_type": PriceGoalChangeType.ASSET_SET_PRICE, "bid_price_goal": 14.88, "ask_price_goal": 15.09},
+            {"bid_price_goal_type": PriceGoalChangeType.ASSET_PERCENTAGE,"ask_price_goal_type": PriceGoalChangeType.ASSET_PERCENTAGE, "bid_price_goal": 0.6, "ask_price_goal": 0.8},
+            {"ask_price_goal_type": PriceGoalChangeType.OPTION_SET_PRICE,"bid_price_goal_type": PriceGoalChangeType.OPTION_SET_PRICE, "bid_price_goal": 0.35, "ask_price_goal": 0.45},
+            {"ask_price_goal_type": PriceGoalChangeType.OPTION_TICK,"bid_price_goal_type": PriceGoalChangeType.OPTION_TICK, "bid_price_goal": 0.05, "ask_price_goal": 0.15},
+            {"ask_price_goal_type": PriceGoalChangeType.OPTION_PERCENTAGE,"bid_price_goal_type": PriceGoalChangeType.OPTION_PERCENTAGE, "bid_price_goal": 10, "ask_price_goal": 15}
         ]
     }
-    #doing this with $15 F calls for 07/28
     # def calculate_price_change_for_entry(asset_price, position_type,strike_price, bid_price_goal, ask,  dte):
     # print('\n'.join([f"{k}: {v}" for k,v in module_config.items()]))
 
-    run_options_test(test_positions, module_config)
+    # run_options_test(test_positions, module_config)
 
+    # we can call the same fn but use the data from module config
+    real_positions ={
+        module_config['position_type']:[
+            {"bid_price_goal_type": module_config['bid_price_goal_type'],"ask_price_goal_type": module_config['ask_price_goal_type'], "bid_price_goal": module_config['bid_price_goal'], "ask_price_goal": module_config['ask_price_goal']},
+        ]
+    }
+    run_options_test(test_positions if module_config['test_mode'] else real_positions, module_config)
     # print(f"#### TESTING ENTRY POSITIONS ####")
     # module_config['bid_price_goal'] = module_config['asset_price'] - 0.10
     # print(f"\nIn order to take a {module_config['position_type']} position ({PositionType.LONG_OPTION if module_config['position_type'] == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['ticker']}) at bid price ${module_config['bid_price_goal']} (current ask: {module_config['ask']}), the following price change needs to occur")
