@@ -65,7 +65,7 @@ def calculate_percentage(x, y):
     except:
         return 0.0
 def timestamp_to_datetime(timestamp):
-    return datetime.datetime.fromtimestamp(timestamp / 1e3, tz=ZoneInfo('US/Eastern'))#.strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.datetime.fromtimestamp(float(timestamp) / 1e3, tz=ZoneInfo('US/Eastern'))#.strftime("%Y-%m-%d %H:%M:%S")
 
 def human_readable_datetime(_d):
     return _d.strftime("%Y-%m-%d %H:%M:%S")

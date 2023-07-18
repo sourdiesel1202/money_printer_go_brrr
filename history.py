@@ -3,7 +3,7 @@ import os
 from enums import OrderType
 import datetime,io
 from zoneinfo import ZoneInfo
-from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today
+from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today, timestamp_to_datetime, human_readable_datetime
 import pandas as pd
 from stockstats import wrap
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
@@ -61,17 +61,20 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
         return history_data
 def write_ticker_history_cached(ticker, ticker_history, module_config):
     write_csv(f"{module_config['output_dir']}cached/{ticker}.csv",convert_ticker_history_to_csv(ticker, ticker_history))
-def load_ticker_history_csv(ticker, ticker_history):
+def load_ticker_history_csv(ticker, ticker_history, convert_to_datetime=False, human_readable=False):
 
     # rows = load_ticker_history_raw(ticker,client,1, "hour", today,today,5000)
     rows = [['date', 'open', 'close', 'high', 'low', 'volume']]
     for entry in ticker_history:
-        rows.append([entry.timestamp, entry.open, entry.close, entry.high, entry.low, entry.volume])
+        if convert_to_datetime:
+            rows.append([timestamp_to_datetime(entry.timestamp) if not human_readable else human_readable_datetime(timestamp_to_datetime(entry.timestamp)) ,  entry.open, entry.close, entry.high, entry.low, entry.volume])
+        else:
+            rows.append([entry.timestamp, entry.open, entry.close, entry.high, entry.low, entry.volume])
     return  rows
 
 
-def load_ticker_history_pd_frame(ticker, ticker_history):
-    _str = generate_csv_string(load_ticker_history_csv(ticker,ticker_history))
+def load_ticker_history_pd_frame(ticker, ticker_history, convert_to_datetime=False, human_readable=False):
+    _str = generate_csv_string(load_ticker_history_csv(ticker,ticker_history,convert_to_datetime=convert_to_datetime, human_readable=human_readable))
     df = pd.read_csv(io.StringIO(_str), sep=",")
     return df
 

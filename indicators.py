@@ -12,12 +12,15 @@ from history import load_ticker_history_pd_frame, load_ticker_history_csv, load_
 from stockstats import wrap
 from enums import *
 from shape import compare_tickers
-from functions import human_readable_datetime
+from functions import human_readable_datetime, timestamp_to_datetime
+from support_resistance import find_support_resistance_levels
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 
 def load_macd(ticker,ticker_history, module_config):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     return {'macd':df['macd'],'signal':df['macds'], 'histogram': df['macdh']}
+def load_support_resistance(ticker, ticker_history, module_config):
+    return find_support_resistance_levels(ticker, ticker_history, module_config)
 
 def load_sma(ticker,ticker_history, module_config, window=0):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
@@ -62,6 +65,28 @@ def load_obv(ticker, client,module_config, **kwargs):
     pass
 # def load_adx(ticker, client, **kwargs):
     # load_dmi(ticker,client,**kwargs)
+
+
+def is_trading_in_sr_band(indicator_data, ticker, ticker_history, module_config, **kwargs):
+    #basically here we determine if the current price is in a support/resistance band
+    if len(indicator_data) == 0:
+        return False
+    plus_minus = sum([round(float((x[1] - x[0])/2), 2) for x in indicator_data if len(x) > 1]) / len(indicator_data)
+    for sr_band in indicator_data:
+        if len(sr_band) == 2:
+            if sr_band[0] <= ticker_history[-1].close <= sr_band[1]:
+                if module_config['logging']:
+                    print(f"{human_readable_datetime(timestamp_to_datetime(ticker_history[-1].timestamp))}:${ticker}: (Last Close ${ticker_history[-1].close}) is trading within Support/Resistance Band (Low: {sr_band[0]} | Mark: {ticker_history[-1].close} | High: {sr_band[1]})")
+                return True
+
+        elif len(sr_band) == 1:
+            # plus_minus = (0.25/100)*sr_band[0]
+            _tmp_band = [sr_band[0]-plus_minus, sr_band[0]+plus_minus]
+            if  _tmp_band[0] <= ticker_history[-1].close <= _tmp_band[1]:
+                if module_config['logging']:
+                    print(f"{human_readable_datetime(timestamp_to_datetime(ticker_history[-1].timestamp))}:${ticker}: (Last Close ${ticker_history[-1].close}) is trading within Support/Resistance Band (Low: {sr_band[0]} | Mark: {ticker_history[-1].close} | High: {_tmp_band[1]})")
+                return True
+    return False
 
 def load_dmi_adx(ticker, ticker_history, module_config, **kwargs):
     '''
@@ -254,7 +279,8 @@ def determine_rsi_alert_type(indicator_data,ticker,ticker_history, module_config
 
 def determine_adx_alert_type(data, ticker,ticker_data,  module_config):
     return AlertType.ADX_THRESHOLD_UPWARD
-
+#
+# def determine_dmi_alert_type(data, ticker, ticker_data, module_config):
 def determine_dmi_alert_type(data, ticker, ticker_data, module_config):
     if (data['dmi+'][ticker_data[-1].timestamp] > data['dmi-'][ticker_data[-1].timestamp] and data['dmi+'][ticker_data[-2].timestamp] < data['dmi-'][ticker_data[-2].timestamp] and data['dmi+'][ticker_data[-1].timestamp] > data['adx'][ticker_data[-1].timestamp]):
         if module_config['logging']:
@@ -275,6 +301,24 @@ def determine_death_cross_alert_type(indicator_data,ticker,ticker_history, modul
         return AlertType.DEATH_CROSS_APPEARED
     else:
         raise Exception(f"Could not determine Golden Cross Alert for {ticker}")
+def determine_sr_direction(indicator_data,ticker,ticker_history, module_config):
+    if len(indicator_data) == 0:
+        raise Exception("Cannot determine Support/Resistance Direction with no data!")
+    plus_minus = sum([round(float((x[1] - x[0]) / 2), 2) for x in indicator_data if len(x) > 1]) / len(indicator_data)
+    for sr_band in indicator_data:
+        if len(sr_band) == 2:
+            if sr_band[0] <= ticker_history[-1].close <= sr_band[1]:
+                # if module_config['logging']:
+                    # print(
+                        # f"{human_readable_datetime(timestamp_to_datetime(ticker_history[-1].timestamp))}:${ticker}: (Last Close ${ticker_history[-1].close}) is trading within Support/Resistance Band (Low: {sr_band[0]} | Mark: {ticker_history[-1].close} | High: {sr_band[1]})")
+                return AlertType.WITHIN_SR_BAND+f" (Low: {sr_band[0]} | Mark: {ticker_history[-1].close} | High: {sr_band[1]})"
+
+        elif len(sr_band) == 1:
+            # plus_minus = (0.25/100)*sr_band[0]
+            _tmp_band = [sr_band[0] - plus_minus, sr_band[0] + plus_minus]
+            if _tmp_band[0] <= ticker_history[-1].close <= _tmp_band[1]:
+                return AlertType.WITHIN_SR_BAND+f"(Low: {_tmp_band[0]} | Mark: {ticker_history[-1].close} | High: {_tmp_band[1]})"
+    return  AlertType.OUTSIDE_SR_BAND
 def determine_golden_cross_alert_type(indicator_data,ticker,ticker_history, module_config):
     if did_golden_cross_alert(indicator_data,ticker,ticker_history,module_config):
         return AlertType.GOLDEN_CROSS_APPEARED

@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert,determine_sma_alert_type
 from indicators import determine_rsi_alert_type, determine_macd_alert_type,determine_adx_alert_type,determine_dmi_alert_type,load_ticker_similar_trends
 from indicators import  load_death_cross, load_golden_cross, determine_death_cross_alert_type,determine_golden_cross_alert_type, did_golden_cross_alert, did_death_cross_alert
+from indicators import load_support_resistance, is_trading_in_sr_band, determine_sr_direction
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv, \
     clear_ticker_history_cache, load_ticker_history_cached
 from functions import load_module_config, read_csv, write_csv, combine_csvs, get_today, process_list_concurrently
@@ -25,7 +26,7 @@ module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results,analyze_backtest_results, analyzed_backtest_keys
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 today =get_today(module_config)
-required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx']
+required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx', "sr_band_breakout", 'golden_cross', 'death_cross']
 
 
 def process_results(ticker_results):
@@ -47,7 +48,7 @@ def process_results(ticker_results):
 
         try:
             cond_dict = {'macd': v['macd'], 'rsi': v['rsi'], 'sma': v['sma'], 'dmi': v['dmi'], 'adx': v['adx'],
-                         'golden_cross': v['golden_cross'], 'death_cross': v['death_cross']}
+                         'golden_cross': v['golden_cross'], 'death_cross': v['death_cross'], 'sr_band_breakout':v['sr_band_breakout']}
             matched_conditions = []
             for kk, vv in cond_dict.items():
                 if vv:
@@ -84,6 +85,7 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     rsi_data = load_rsi(ticker, ticker_history, module_config)
     golden_cross_data = load_golden_cross(ticker, ticker_history, module_config)
     death_cross_data = load_death_cross(ticker, ticker_history, module_config)
+    sr_data = load_support_resistance(ticker, ticker_history, module_config)
 
     # def did_macd_alert(indicator_data, ticker, ticker_history, module_config):
     ticker_results[ticker]['long_validation'] = ','.join([k for k, v in validate_ticker(PositionType.LONG, ticker, ticker_history, module_config).items() if v])
@@ -93,10 +95,9 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     ticker_results[ticker]['rsi'] = did_rsi_alert(rsi_data, ticker, ticker_history, module_config)
     ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker, ticker_history, module_config)
     ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data, ticker, ticker_history, module_config)
-    ticker_results[ticker]['golden_cross'] = did_golden_cross_alert(golden_cross_data, ticker, ticker_history,
-                                                                    module_config)
-    ticker_results[ticker]['death_cross'] = did_death_cross_alert(death_cross_data, ticker, ticker_history,
-                                                                  module_config)
+    ticker_results[ticker]['golden_cross'] = did_golden_cross_alert(golden_cross_data, ticker, ticker_history,module_config)
+    ticker_results[ticker]['death_cross'] = did_death_cross_alert(death_cross_data, ticker, ticker_history,module_config)
+    ticker_results[ticker]['sr_band_breakout'] = not is_trading_in_sr_band(sr_data, ticker, ticker_history,module_config)
     if ticker_results[ticker]['macd']:
         ticker_results[ticker]['directions'].append(
             determine_macd_alert_type(macd_data, ticker, ticker_history, module_config))
@@ -118,6 +119,9 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     if ticker_results[ticker]['death_cross']:
         ticker_results[ticker]['directions'].append(
             determine_death_cross_alert_type(death_cross_data, ticker, ticker_history, module_config))
+    if ticker_results[ticker]['sr_band_breakout']:
+            ticker_results[ticker]['directions'].append(
+                determine_sr_direction(sr_data, ticker, ticker_history, module_config))
 
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
