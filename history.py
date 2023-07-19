@@ -33,6 +33,16 @@ def load_ticker_history_cached(ticker,module_config):
 
     for entry in read_csv(f"{module_config['output_dir']}cached/{ticker}.csv")[1:]:
         ticker_history.append(TickerHistory(*[float(x) for x in entry]))
+
+    if module_config['test_mode']:
+        if module_config['test_use_test_time']:
+            # print(f"using test time")
+            # rn make this work with the hours only
+            for i in range(0, len(ticker_history)):
+                if timestamp_to_datetime(ticker_history[-i].timestamp).hour == module_config['test_time']:
+                    history_data = ticker_history[:-i + 1]
+                    break
+
     return ticker_history
 def clear_ticker_history_cache(module_config):
     os.system (f" rm -rf {module_config['output_dir']}cached/")
@@ -56,8 +66,19 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
                                                tz=ZoneInfo('US/Eastern')).hour >= 10 and datetime.datetime.fromtimestamp(
                     entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour <= 15:
                 history_data.append(TickerHistory(entry.open, entry.close,entry.high, entry.low, entry.volume, entry.timestamp))
-        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:")
+
+        if module_config['test_mode']:
+            if module_config['test_use_test_time']:
+                # print(f"using test time")
+                #rn make this work with the hours only
+                for i in range(0, len(history_data)):
+                    if timestamp_to_datetime(history_data[-i].timestamp).hour == module_config['test_time']:
+                        history_data = history_data[:-i+1]
+                        break
+
+        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
         write_ticker_history_cached(ticker, history_data, module_config)
+
         return history_data
 def write_ticker_history_cached(ticker, ticker_history, module_config):
     write_csv(f"{module_config['output_dir']}cached/{ticker}.csv",convert_ticker_history_to_csv(ticker, ticker_history))

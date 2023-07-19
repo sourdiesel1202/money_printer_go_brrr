@@ -31,16 +31,5 @@ if __name__ == '__main__':
 
                 print(f"{human_readable_datetime(timestamp_to_datetime(ticker_history[-1].timestamp))}:${ticker}: Testing Support Resistance (Last Close ${ticker_history[-1].close}) Alert Fired: {output}")
 
-        # find_support_resistance_levels(ticker_a, load_ticker_history_cached(ticker_a, module_config), module_config)
-        # for ticker_b in module_config['compare_tickers']:
-        #     ticker_history_a = load_ticker_history_raw(ticker_a, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000,module_config)
-        #     ticker_history_b = load_ticker_history_raw(ticker_b, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000, module_config)
-        #     compare_tickers(ticker_a, ticker_history_a, ticker_b, ticker_history_b, module_config)
-        # # if module_config['run_concurrently']:
-            # determine_line_similarity(1,2)
-            # de(module_config['position_type'],ticker,ticker_history, module_config)
-        # else:
-            # determine_line_similarity(1, 2)
-            # validate_ticker(module_config['position_type'],ticker,ticker_history, module_config)
 
     print(f"\nCompleted {module_config['position_type']} validation of ({','.join([f'${x}' for x in module_config['tickers']])}) in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")

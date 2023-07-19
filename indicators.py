@@ -1,6 +1,7 @@
 import operator
 import os
 import traceback
+from itertools import chain
 
 from iteration_utilities import chained
 from functools import partial
@@ -81,10 +82,10 @@ def is_trading_in_sr_band(indicator_data, ticker, ticker_history, module_config,
 
         elif len(sr_band) == 1:
             # plus_minus = (0.25/100)*sr_band[0]
-            _tmp_band = [sr_band[0]-plus_minus, sr_band[0]+plus_minus]
+            _tmp_band = [sr_band[0] - plus_minus, sr_band[0] + plus_minus]
             if  _tmp_band[0] <= ticker_history[-1].close <= _tmp_band[1]:
                 if module_config['logging']:
-                    print(f"{human_readable_datetime(timestamp_to_datetime(ticker_history[-1].timestamp))}:${ticker}: (Last Close ${ticker_history[-1].close}) is trading within Support/Resistance Band (Low: {sr_band[0]} | Mark: {ticker_history[-1].close} | High: {_tmp_band[1]})")
+                    print(f"{human_readable_datetime(timestamp_to_datetime(ticker_history[-1].timestamp))}:${ticker}: (Last Close ${ticker_history[-1].close}) is trading within Support/Resistance Band (Low: {_tmp_band[0]} | Mark: {ticker_history[-1].close} | High: {_tmp_band[1]})")
                 return True
     return False
 
@@ -305,20 +306,65 @@ def determine_sr_direction(indicator_data,ticker,ticker_history, module_config):
     if len(indicator_data) == 0:
         raise Exception("Cannot determine Support/Resistance Direction with no data!")
     plus_minus = sum([round(float((x[1] - x[0]) / 2), 2) for x in indicator_data if len(x) > 1]) / len(indicator_data)
+    # ok so if we're trading in an SR band, we wan
+    trending_positive = (ticker_history[-1].close >ticker_history[-1].open) and  (ticker_history[-2].open < ticker_history[-2].close) and ticker_history[-2].close < ticker_history[-1].close# sum([ticker_history[-ii].close - ticker_history[-(ii + 1)].close for ii in range(1, 2)]) >= 0
     for sr_band in indicator_data:
         if len(sr_band) == 2:
             if sr_band[0] <= ticker_history[-1].close <= sr_band[1]:
+
                 # if module_config['logging']:
                     # print(
                         # f"{human_readable_datetime(timestamp_to_datetime(ticker_history[-1].timestamp))}:${ticker}: (Last Close ${ticker_history[-1].close}) is trading within Support/Resistance Band (Low: {sr_band[0]} | Mark: {ticker_history[-1].close} | High: {sr_band[1]})")
-                return AlertType.WITHIN_SR_BAND+f" (Low: {sr_band[0]} | Mark: {ticker_history[-1].close} | High: {sr_band[1]})"
+
+                #if we're in a band, find out whether it's heading toward the top or the bottom of the band
+                #look back over last 3 bars, and see what the trend is, if it's down we're presumably headed to the support level,
+                #if it's up presumably we're headed
+                return AlertType.SR_CONSOLIDATING+f" (LB: ${round(sr_band[0],2)} | Current: ${ticker_history[-1].close} | HB: ${round(sr_band[1],2)})"
 
         elif len(sr_band) == 1:
             # plus_minus = (0.25/100)*sr_band[0]
             _tmp_band = [sr_band[0] - plus_minus, sr_band[0] + plus_minus]
             if _tmp_band[0] <= ticker_history[-1].close <= _tmp_band[1]:
-                return AlertType.WITHIN_SR_BAND+f"(Low: {_tmp_band[0]} | Mark: {ticker_history[-1].close} | High: {_tmp_band[1]})"
-    return  AlertType.OUTSIDE_SR_BAND
+                return AlertType.SR_CONSOLIDATING+f" (LB: ${round(_tmp_band[0],2)} | Current: ${ticker_history[-1].close} | HB: ${round(_tmp_band[1],2)})"
+                pass
+
+    #if we get here we are in a breakout, so we need to find out what band it's approaching
+    #first get direction
+    # deltas =
+    #positive upward movement
+    # ok so now we need to figure out what the nearest SR band is
+    # _tmp_band = [sr_band[0] - plus_minus, sr_band[0] + plus_minus]
+    distance_to_points = []
+
+    flattened_levels = list(chain.from_iterable(indicator_data))
+    flattened_levels.sort(key=lambda x: x)
+
+    for level in flattened_levels:
+        if trending_positive:
+            if level < ticker_history[-1].close:
+                continue
+            else:
+                distance_to_points.append(level - ticker_history[-1].close)
+        else:
+            if level > ticker_history[-1].close:
+                continue
+            else:
+                distance_to_points.append(level - ticker_history[-1].close)
+
+
+    if len(distance_to_points) == 0:
+        if trending_positive:
+
+            return AlertType.ABOVE_HIGHEST_SR_BAND+f": ${flattened_levels[-1]}"
+        else:
+            return AlertType.BELOW_LOWEST_SR_BAND+f" ${flattened_levels[0]}"
+    else:
+        # sr_band = indicator_data[min_index] if len(indicator_data[min_index]) > 1 else [sr_band[0] - plus_minus, sr_band[0] + plus_minus]
+        distance_to_points.sort(key=lambda x: x, reverse=not trending_positive)
+        if trending_positive:
+            return AlertType.BREAKOUT_SR_UP+f"==>${round(distance_to_points[0]+ticker_history[-1].close,2)} (${round(distance_to_points[0],2)}/{round(float(distance_to_points[0] / ticker_history[-1].close)*100,2)}%)"
+        else:
+            return AlertType.BREAKOUT_SR_DOWN+f"==>${round(distance_to_points[0]+ticker_history[-1].close,2)} (${round(distance_to_points[0],2)}/{round(float(distance_to_points[0] / ticker_history[-1].close)*100,2)}%)"
 def determine_golden_cross_alert_type(indicator_data,ticker,ticker_history, module_config):
     if did_golden_cross_alert(indicator_data,ticker,ticker_history,module_config):
         return AlertType.GOLDEN_CROSS_APPEARED

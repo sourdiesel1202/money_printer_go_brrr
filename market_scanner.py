@@ -5,6 +5,7 @@ from functools import partial
 import os, operator
 import traceback
 import multiprocessing
+from enums import AlertType
 from notification import send_email, generate_mpd_html_table
 # Press ⇧F10 to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
@@ -54,12 +55,12 @@ def process_results(ticker_results):
                 if vv:
                     matched_conditions.append(kk)
             if len(matched_conditions) >= module_config['report_alert_min']:
-
+                # matched_conditions.sort(key=lambda x:x)
                 results.append([datetime.datetime.fromtimestamp(v['latest'] / 1e3, tz=ZoneInfo('US/Eastern')).strftime(
-                    "%Y-%m-%d %H:%M:%S"), k, v['close'], v['volume'], v['long_validation'], v['short_validation']])
+                    "%Y-%m-%d %H:%M:%S"), k, f"${v['close']}", v['volume'], v['long_validation'], v['short_validation']])
                 results[-1].append(len(matched_conditions))
-                results[-1].append(','.join(matched_conditions))
-                results[-1].append(','.join(v['directions']))
+                results[-1].append(','.join(matched_conditions).upper())
+                results[-1].append(','.join(v['directions']).upper())
                 #ok so here we can do our test of similar tickers
                 if len(matched_conditions) > module_config['report_alert_min']:
                     results[-1].append(','.join(load_ticker_similar_trends(k, module_config)))
@@ -120,8 +121,13 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
         ticker_results[ticker]['directions'].append(
             determine_death_cross_alert_type(death_cross_data, ticker, ticker_history, module_config))
     if ticker_results[ticker]['sr_band_breakout']:
-            ticker_results[ticker]['directions'].append(
-                determine_sr_direction(sr_data, ticker, ticker_history, module_config))
+            ticker_results[ticker]['directions'].append(determine_sr_direction(sr_data, ticker, ticker_history, module_config))
+            #ignore if under sr_breakout_percentage
+            if AlertType.BREAKOUT_SR_UP in ticker_results[ticker]['directions'][-1] or AlertType.BREAKOUT_SR_DOWN in ticker_results[ticker]['directions'][-1]:
+                breakout_percentage = float(ticker_results[ticker]['directions'][-1].split('/')[-1].split('%')[0].replace('-',''))
+                if breakout_percentage < module_config['sr_breakout_percentage']:
+                    ticker_results[ticker]['sr_band_breakout'] = False
+                    del ticker_results[ticker]['directions'][-1]
 
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
