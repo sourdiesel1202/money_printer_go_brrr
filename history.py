@@ -33,7 +33,7 @@ def convert_ticker_history_to_csv(ticker, ticker_history):
 def load_ticker_history_cached(ticker,module_config):
     ticker_history = []
 
-    for entry in read_csv(f"{module_config['output_dir']}cached/{ticker}.csv")[1:]:
+    for entry in read_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[1:]:
         ticker_history.append(TickerHistory(*[float(x) for x in entry]))
 
     if module_config['test_mode']:
@@ -50,7 +50,7 @@ def clear_ticker_history_cache(module_config):
     os.system (f" rm -rf {module_config['output_dir']}cached/")
     os.mkdir(f"{module_config['output_dir']}cached/")
 def clear_ticker_history_cache_entry(ticker, module_config):
-    os.system(f"rm {module_config['output_dir']}cached/{ticker}.csv")
+    os.system(f"rm {module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")
     # os.mkdir(f"{module_config['output_dir']}cached/")
 def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False):
     # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
@@ -62,7 +62,7 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
     if cached:
         return load_ticker_history_cached(ticker, module_config)
     else:
-        if os.path.exists(f"{module_config['output_dir']}cached/{ticker}.csv"):
+        if os.path.exists(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv"):
             clear_ticker_history_cache_entry(ticker,module_config)
         history_data =  []
         for entry in client.list_aggs(ticker=ticker,multiplier = multiplier, timespan = timespan, from_ = from_, to = to, limit=50000, sort='asc'):
@@ -96,7 +96,7 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
 
         return history_data
 def write_ticker_history_cached(ticker, ticker_history, module_config):
-    write_csv(f"{module_config['output_dir']}cached/{ticker}.csv",convert_ticker_history_to_csv(ticker, ticker_history))
+    write_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv",convert_ticker_history_to_csv(ticker, ticker_history))
 def load_ticker_history_csv(ticker, ticker_history, convert_to_datetime=False, human_readable=False):
 
     # rows = load_ticker_history_raw(ticker,client,1, "hour", today,today,5000)

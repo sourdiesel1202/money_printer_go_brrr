@@ -107,7 +107,7 @@ def generate_polygon_date_str(days_ago):
     # print(new_date.strftime("%Y-%m-%d"))
     return new_date.strftime("%Y-%m-%d")
 def load_backtest_ticker_data(ticker, client,module_config):
-    return load_ticker_history_raw(ticker,client,30, 'hour', get_today(module_config, minus_days=365), get_today(module_config,minus_days=1),50000,module_config)
+    return load_ticker_history_raw(ticker,client,30, 'hour', get_today(module_config, minus_days=720), get_today(module_config,minus_days=1),50000,module_config)
     # client = polygon.RESTClient(api_key=module_config['api_key'])
     # history_data = []
     # # for entry in client.list_aggs(ticker=ticker, multiplier=multiplier, timespan=timespan, from_=from_, to=to,limit=limit, sort='asc'):
