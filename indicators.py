@@ -15,13 +15,22 @@ from enums import *
 from shape import compare_tickers
 from functions import human_readable_datetime, timestamp_to_datetime
 from support_resistance import find_support_resistance_levels
+# from validation import validate_dmi
+
+
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 
 def load_macd(ticker,ticker_history, module_config):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     return {'macd':df['macd'],'signal':df['macds'], 'histogram': df['macdh']}
-def load_support_resistance(ticker, ticker_history, module_config):
-    return find_support_resistance_levels(ticker, ticker_history, module_config)
+def load_support_resistance(ticker, ticker_history, module_config, flatten=False):
+
+    if flatten:
+        flattened_levels = list(chain.from_iterable(find_support_resistance_levels(ticker, ticker_history, module_config)))
+        flattened_levels.sort(key=lambda x: x)
+        return flattened_levels
+    else:
+        return find_support_resistance_levels(ticker, ticker_history, module_config)
 
 def load_sma(ticker,ticker_history, module_config, window=0):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
@@ -193,10 +202,13 @@ def did_adx_alert(dmi_data,ticker,ticker_data,module_config):
     :param data:
     :return:
     '''
-    if (dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp] and dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold']):
+
+    valid_dmi = (dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]) or (dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp])
+    if valid_dmi and dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]:
         if module_config['logging']:
             print(f"{datetime.datetime.fromtimestamp(ticker_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}:: ADX Alert Triggered  ADX Value: {dmi_data['adx'][ticker_data[-1].timestamp]} adx-1 Value: {dmi_data['adx'][ticker_data[-2].timestamp]} ")
         return True
+
     else:
         return False
 

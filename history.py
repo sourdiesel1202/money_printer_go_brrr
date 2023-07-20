@@ -32,7 +32,6 @@ def convert_ticker_history_to_csv(ticker, ticker_history):
     return rows
 def load_ticker_history_cached(ticker,module_config):
     ticker_history = []
-
     for entry in read_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[1:]:
         ticker_history.append(TickerHistory(*[float(x) for x in entry]))
 
@@ -58,6 +57,7 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
     if timespan == 'hour':
         timespan = 'minute'
         multiplier = 30
+        module_config['og_ts_multiplier'] = module_config['timespan_multiplier']
         module_config['timespan_multiplier'] = multiplier
     if cached:
         return load_ticker_history_cached(ticker, module_config)
@@ -90,7 +90,8 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
                         break
         if module_config['timespan'] == 'hour':
             history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
-        # if module_config['logging']:
+            module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
+            # if module_config['logging']:
         print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
         write_ticker_history_cached(ticker, history_data, module_config)
 
@@ -176,7 +177,7 @@ def normalize_history_data_for_hour(ticker, ticker_history, module_config):
             th = TickerHistory(hour['opens'][-1], hour['closes'][0], max(hour['highs']), min(hour['lows']), sum(hour['volumes']), hour['timestamps'][-1])
         else:
             th = TickerHistory(hour['opens'][-1], hour['closes'][0], max(hour['highs']), min(hour['lows']),
-                               sum(hour['volumes']), hour['timestamps'][-1])
+                               sum(hour['volumes']), hour['timestamps'][0])
         # else:
         #     th = TickerHistory(hour['opens'][-1], hour['closes'][0], max(hour['highs']), min(hour['lows']), sum(hour['volumes']), hour['timestamps'][-1])
         if module_config['logging']:

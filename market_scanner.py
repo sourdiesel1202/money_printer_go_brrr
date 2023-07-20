@@ -1,5 +1,7 @@
 # This is a sample Python script.
 # import operator import itemgetter
+from multiprocessing import freeze_support
+
 from iteration_utilities import chained
 from functools import partial
 import os, operator
@@ -79,7 +81,8 @@ def process_results(ticker_results):
     # new
     write_csv(f"{module_config['output_dir']}{os.getpid()}.csv", results)
 def build_ticker_results(ticker, ticker_results,ticker_history, client):
-
+    _th = ticker_history
+    ticker_history = ticker_history[:-1] #since the last bar hasn't closed yet
     sma = load_sma(ticker, ticker_history, module_config)
     macd_data = load_macd(ticker, ticker_history, module_config)
     dmi_adx_data = load_dmi_adx(ticker, ticker_history, module_config)
@@ -89,8 +92,8 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     sr_data = load_support_resistance(ticker, ticker_history, module_config)
 
     # def did_macd_alert(indicator_data, ticker, ticker_history, module_config):
-    ticker_results[ticker]['long_validation'] = ','.join([k for k, v in validate_ticker(PositionType.LONG, ticker, ticker_history, module_config).items() if v])
-    ticker_results[ticker]['short_validation'] = ','.join([k for k, v in validate_ticker(PositionType.SHORT, ticker, ticker_history, module_config).items() if v])
+    ticker_results[ticker]['long_validation'] = ','.join([k for k, v in validate_ticker(PositionType.LONG, ticker, _th, module_config).items() if v])
+    ticker_results[ticker]['short_validation'] = ','.join([k for k, v in validate_ticker(PositionType.SHORT, ticker, _th, module_config).items() if v])
     ticker_results[ticker]['sma'] = did_sma_alert(sma, ticker, ticker_history, module_config)
     ticker_results[ticker]['macd'] = did_macd_alert(macd_data, ticker, ticker_history, module_config)
     ticker_results[ticker]['rsi'] = did_rsi_alert(rsi_data, ticker, ticker_history, module_config)
@@ -102,9 +105,6 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     if ticker_results[ticker]['macd']:
         ticker_results[ticker]['directions'].append(
             determine_macd_alert_type(macd_data, ticker, ticker_history, module_config))
-    if ticker_results[ticker]['rsi']:
-        ticker_results[ticker]['directions'].append(
-            determine_rsi_alert_type(rsi_data, ticker, ticker_history, module_config))
     if ticker_results[ticker]['dmi']:
         ticker_results[ticker]['directions'].append(
             determine_dmi_alert_type(dmi_adx_data, ticker, ticker_history, module_config))
@@ -128,7 +128,21 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
                 if breakout_percentage < module_config['sr_breakout_percentage']:
                     ticker_results[ticker]['sr_band_breakout'] = False
                     del ticker_results[ticker]['directions'][-1]
-
+    if ticker_results[ticker]['rsi']:
+        ticker_results[ticker]['directions'].append(determine_rsi_alert_type(rsi_data, ticker, ticker_history, module_config))
+        #basically if any bullish alerst and overbought, ignore
+        if ((ticker_results[ticker]['macd'] and determine_macd_alert_type(macd_data, ticker, ticker_history, module_config) == AlertType.MACD_MACD_CROSS_SIGNAL) or
+           (ticker_results[ticker]['sma'] and determine_sma_alert_type(sma, ticker, ticker_history, module_config) == AlertType.SMA_CONFIRMATION_UPWARD) or
+           (ticker_results[ticker]['dmi'] and determine_dmi_alert_type(dmi_adx_data, ticker, ticker_history, module_config) == AlertType.DMIPLUS_CROSSOVER_DMINEG))  and determine_rsi_alert_type(rsi_data, ticker, ticker_history, module_config) == AlertType.RSI_OVERBOUGHT:
+            ticker_results[ticker]['rsi'] = False
+            del ticker_results[ticker]['directions'][-1]
+        elif ((ticker_results[ticker]['macd'] and determine_macd_alert_type(macd_data, ticker, ticker_history, module_config) == AlertType.MACD_SIGNAL_CROSS_MACD) or
+           (ticker_results[ticker]['sma'] and determine_sma_alert_type(sma, ticker, ticker_history, module_config) == AlertType.SMA_CONFIRMATION_DOWNWARD) or
+           (ticker_results[ticker]['dmi'] and determine_dmi_alert_type(dmi_adx_data, ticker, ticker_history, module_config) == AlertType.DMINEG_CROSSOVER_DMIPLUS))  and determine_rsi_alert_type(rsi_data, ticker, ticker_history, module_config) == AlertType.RSI_OVERSOLD:
+            ticker_results[ticker]['rsi'] = False
+            del ticker_results[ticker]['directions'][-1]
+        # if ticker_results[ticker]['rsi']:
+        #ok so here we need to determine whether to ignore the RSI alert
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
     # client = polygon.RESTClient(api_key=module_config['api_key'])
@@ -201,7 +215,7 @@ def generate_report(_tickers, module_config):
         process_list_concurrently(_tickers, load_ticker_histories,int(len(_tickers)/12)+1)
     else:
         load_ticker_histories(_tickers)
-    _tickers = [x.split(".csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]
+    _tickers = [x.split(f"{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]
     if module_config['run_concurrently']:
         task_loads = [_tickers[i:i + int(len(_tickers)/12)+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
         # for k,v in dispensaries.items():
@@ -316,25 +330,25 @@ def run_backtests(results, module_config):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-
-        start_time = time.time()
-        # client = polygon.RESTClient(api_key=module_config['api_key'])
-        # history_entries = load_ticker_history_csv("GE", client, 1, "hour", today, today, 500)
-        # history_entries = load_ticker_history_raw("GE",  client, 1, "hour", today, today, 500)
-        # did_dmi_alert(load_dmi_adx("GE", client, history_entries, module_config), history_entries, "GE", module_config)
-        ##find data
-        if module_config['trading_hours_only']:
-            if datetime.datetime.now().hour < 17 and datetime.datetime.now().hour > 8:
-                results = find_tickers()
-                #do notification send
-                send_email("andrew.smiley937@gmail.com","andrew.smiley937@gmail.com", f"MPB Traders (Hourly)  {datetime.datetime.now().strftime('%Y-%m-%d %H:00')}", generate_mpd_html_table(results['mpb']))
-            else:
-                print(f"Not currently trading hours ({datetime.datetime.now()}), skipping")
-        else:
+    # freeze_support()
+    start_time = time.time()
+    # client = polygon.RESTClient(api_key=module_config['api_key'])
+    # history_entries = load_ticker_history_csv("GE", client, 1, "hour", today, today, 500)
+    # history_entries = load_ticker_history_raw("GE",  client, 1, "hour", today, today, 500)
+    # did_dmi_alert(load_dmi_adx("GE", client, history_entries, module_config), history_entries, "GE", module_config)
+    ##find data
+    if module_config['trading_hours_only']:
+        if datetime.datetime.now().hour < 17 and datetime.datetime.now().hour > 8:
             results = find_tickers()
-            # do notification send
-            send_email("andrew.smiley937@gmail.com", "andrew.smiley937@gmail.com",f"MPB Traders (Hourly)  {datetime.datetime.now().strftime('%Y-%m-%d %H:00')}",generate_mpd_html_table(results['mpb']))
-        # ticker_history = load_ticker_history_raw(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
-        # ticke = load_ticker_history_pd_frame(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
+            #do notification send
+            send_email("andrew.smiley937@gmail.com","andrew.smiley937@gmail.com", f"MPB Traders (Hourly)  {datetime.datetime.now().strftime('%Y-%m-%d %H:00')}", generate_mpd_html_table(results['mpb']))
+        else:
+            print(f"Not currently trading hours ({datetime.datetime.now()}), skipping")
+    else:
+        results = find_tickers()
+        # do notification send
+        send_email("andrew.smiley937@gmail.com", "andrew.smiley937@gmail.com",f"MPB Traders (Hourly)  {datetime.datetime.now().strftime('%Y-%m-%d %H:00')}",generate_mpd_html_table(results['mpb']))
+    # ticker_history = load_ticker_history_raw(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
+    # ticke = load_ticker_history_pd_frame(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
 
-        print(f"\nCompleted NYSE Market Scan in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")
+    print(f"\nCompleted NYSE Market Scan in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")
