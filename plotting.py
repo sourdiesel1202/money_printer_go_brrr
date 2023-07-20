@@ -54,9 +54,9 @@ def plot_ticker_with_indicators(ticker, ticker_history, indicator_data, module_c
             dict(bounds=[16, 9.5], pattern="hour"),
 
         ])
-    candle_fig.show()
-    indicator_figure.show()
-    figures_to_html(ticker, [candle_fig, indicator_figure])
+    # candle_fig.show()
+    # indicator_figure.show()
+    figures_to_html(ticker, [candle_fig, indicator_figure], f"html/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.html")
     pass
 
 # def plot_sma(ticker, ticker_history,indicator_data, module_config):
@@ -115,7 +115,7 @@ def plot_sr_lines(ticker, ticker_history,indicator_data, module_config):
     return lines
 
 
-def figures_to_html(ticker,figs, filename="dashboard.html"):
+def figures_to_html(ticker,figs, filename):
     with open(filename, 'w') as dashboard:
         dashboard.write(f"<html><head></head><body><h2>${ticker}</h2>" + "\n")
         for fig in figs:
