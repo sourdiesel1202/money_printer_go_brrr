@@ -1,1 +1,12 @@
 timestamp,symbol,price,volume,long_validation,short_validation,pick_level,conditions_matched,alerts_triggered,similar_tickers,backtested,likelihood_long_3,likelihood_short_3,likelihood_long_5,likelihood_short_5,likelihood_long_7,likelihood_short_7,likelihood_long_9,likelihood_short_9,likelihood_long_ntdo,likelihood_short_ntdo,likelihood_long_ntdc,likelihood_short_ntdc,average_price_increase_percentage,average_price_decrease_percentage
+2023-07-20 15:30:00,AA,$32.7,1768100.0,rsi,"macd,dmi,adx",2,"ADX,SR_BAND_BREAKOUT","ADX_THRESHOLD_UPWARD,BREAKOUT_SR_DOWN==>$32.07 ($-0.91/-2.74%)",,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,A,$124.53,535600.0,"sma,macd",rsi,2,"ADX,SR_BAND_BREAKOUT","ADX_THRESHOLD_UPWARD,BREAKOUT_SR_DOWN==>$123.18 ($-1.53/-1.23%)",,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,BAC,$31.685,6590176.0,"dmi,adx","macd,rsi",1,ADX,ADX_THRESHOLD_UPWARD,,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,AAP,$70.0,514259.0,rsi,"macd,rsi",1,DMI,DMIPLUS_CROSSOVER_DMINEG,,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,NVS,$105.13,361816.0,sma,"macd,rsi",1,ADX,ADX_THRESHOLD_UPWARD,,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,HIG,$74.64,295224.0,"sma,macd,dmi,adx",rsi,1,ADX,ADX_THRESHOLD_UPWARD,,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,SRE,$149.67,154246.0,"sma,macd,dmi,adx",rsi,1,ADX,ADX_THRESHOLD_UPWARD,,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,SRC,$41.74,131291.0,"sma,macd,dmi,adx",rsi,1,ADX,ADX_THRESHOLD_UPWARD,,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,TYL,$403.91,75485.0,rsi,"sma,macd,dmi,adx",1,ADX,ADX_THRESHOLD_UPWARD,,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,SR,$65.44,52011.0,"sma,macd,dmi,adx",rsi,1,ADX,ADX_THRESHOLD_UPWARD,,False,,,,,,,,,,,,,,
+2023-07-20 15:30:00,NWE,$58.01,45518.0,"sma,macd,dmi,adx",rsi,1,ADX,ADX_THRESHOLD_UPWARD,,False,,,,,,,,,,,,,,

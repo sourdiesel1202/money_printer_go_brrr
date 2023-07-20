@@ -92,12 +92,26 @@ def plot_indicator_data_dual_y_axis(ticker, ticker_history,indicator_data, modul
 def plot_sr_lines(ticker, ticker_history,indicator_data, module_config):
     lines = []
     for sr_level in indicator_data:
-        lines.append(go.Line(
-            x0=ticker_history[0].dt,
-            y0=sr_level,
-            x1=ticker_history[-1].dt,
-            y1=sr_level, line={'color': 'blue', 'width': 0.25, 'dash':'dashdot'}
-        ))
+        text = ['' for x in ticker_history[:1]]
+        # text.insert(-1, sr_level)
+        lines.append(go.Scatter(
+                    x=[x.dt for x in ticker_history],
+                    y=[sr_level for x in ticker_history],
+                    mode="lines+text",
+                    line={'width':0.5, 'color':'blue', 'dash':'dashdot'},
+                    name=f"S/R {sr_level}",
+                    text=text,
+                    textposition="bottom right"
+)
+
+        )
+        # lines.append(go.Line(
+        #
+        #     x0=ticker_history[0].dt,
+        #     y0=sr_level,
+        #     x1=ticker_history[-1].dt,
+        #     y1=sr_level, line={'color': 'blue', 'width': 0.25, 'dash':'dashdot'},
+        # ))
     return lines
 
 
