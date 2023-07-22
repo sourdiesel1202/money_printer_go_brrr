@@ -1,7 +1,7 @@
 # This is a sample Python script.
 # import operator import itemgetter
 from multiprocessing import freeze_support
-
+from mpb_html import build_dashboard
 from iteration_utilities import chained
 from functools import partial
 import os, operator
@@ -29,8 +29,8 @@ module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results,analyze_backtest_results, analyzed_backtest_keys
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 today =get_today(module_config)
-required_indicators = ["macd", 'rsi', 'sma', 'dmi', 'adx', "sr_band_breakout", 'golden_cross', 'death_cross']
-
+required_indicators = ["macd", 'rsi', 'sma', 'dmi', "sr_band_breakout", 'golden_cross', 'death_cross']
+from plotting import build_indicator_dict, plot_ticker_with_indicators
 
 def process_results(ticker_results):
     #this gets called after all the ticker data is loaded, thus we can use cached data
@@ -50,7 +50,7 @@ def process_results(ticker_results):
             continue
 
         try:
-            cond_dict = {'macd': v['macd'], 'rsi': v['rsi'], 'sma': v['sma'], 'dmi': v['dmi'], 'adx': v['adx'],
+            cond_dict = {'macd': v['macd'], 'rsi': v['rsi'], 'sma': v['sma'], 'dmi': v['dmi'],
                          'golden_cross': v['golden_cross'], 'death_cross': v['death_cross'], 'sr_band_breakout':v['sr_band_breakout']}
             matched_conditions = []
             for kk, vv in cond_dict.items():
@@ -59,7 +59,7 @@ def process_results(ticker_results):
             if len(matched_conditions) >= module_config['report_alert_min']:
                 # matched_conditions.sort(key=lambda x:x)
                 results.append([datetime.datetime.fromtimestamp(v['latest'] / 1e3, tz=ZoneInfo('US/Eastern')).strftime(
-                    "%Y-%m-%d %H:%M:%S"), k, f"${v['close']}", v['volume'], v['long_validation'], v['short_validation']])
+                    "%Y-%m-%d %H:%M:%S"), f"<a href='{module_config['timespan_multiplier']}{module_config['timespan']}{k}.html'>{k}</a>", f"${v['close']}", v['volume'], v['long_validation'], v['short_validation']])
                 results[-1].append(len(matched_conditions))
                 results[-1].append(','.join(matched_conditions).upper())
                 results[-1].append(','.join(v['directions']).upper())
@@ -98,7 +98,7 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     ticker_results[ticker]['macd'] = did_macd_alert(macd_data, ticker, ticker_history, module_config)
     ticker_results[ticker]['rsi'] = did_rsi_alert(rsi_data, ticker, ticker_history, module_config)
     ticker_results[ticker]['dmi'] = did_dmi_alert(dmi_adx_data, ticker, ticker_history, module_config)
-    ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data, ticker, ticker_history, module_config)
+    # ticker_results[ticker]['adx'] = did_adx_alert(dmi_adx_data, ticker, ticker_history, module_config)
     ticker_results[ticker]['golden_cross'] = did_golden_cross_alert(golden_cross_data, ticker, ticker_history,module_config)
     ticker_results[ticker]['death_cross'] = did_death_cross_alert(death_cross_data, ticker, ticker_history,module_config)
     ticker_results[ticker]['sr_band_breakout'] = not is_trading_in_sr_band(sr_data, ticker, ticker_history,module_config)
@@ -108,9 +108,9 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     if ticker_results[ticker]['dmi']:
         ticker_results[ticker]['directions'].append(
             determine_dmi_alert_type(dmi_adx_data, ticker, ticker_history, module_config))
-    if ticker_results[ticker]['adx']:
-        ticker_results[ticker]['directions'].append(
-            determine_adx_alert_type(dmi_adx_data, ticker_history, ticker, module_config))
+    # if ticker_results[ticker]['adx']:
+    #     ticker_results[ticker]['directions'].append(
+    #         determine_adx_alert_type(dmi_adx_data, ticker_history, ticker, module_config))
     if ticker_results[ticker]['sma']:
         ticker_results[ticker]['directions'].append(
             determine_sma_alert_type(sma, ticker, ticker_history, module_config))
@@ -141,8 +141,12 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
            (ticker_results[ticker]['dmi'] and determine_dmi_alert_type(dmi_adx_data, ticker, ticker_history, module_config) == AlertType.DMINEG_CROSSOVER_DMIPLUS))  and determine_rsi_alert_type(rsi_data, ticker, ticker_history, module_config) == AlertType.RSI_OVERSOLD:
             ticker_results[ticker]['rsi'] = False
             del ticker_results[ticker]['directions'][-1]
+
+
         # if ticker_results[ticker]['rsi']:
-        #ok so here we need to determine whether to ignore the RSI alert
+    #generate plot for the ticker
+    if len(ticker_results[ticker]['directions']) >= module_config['report_alert_min']:
+        plot_ticker_with_indicators(ticker, _th,build_indicator_dict(ticker, _th, module_config), module_config)
 def process_tickers(tickers):
     client = polygon.RESTClient(api_key=module_config['api_key'])
     # client = polygon.RESTClient(api_key=module_config['api_key'])
@@ -309,10 +313,11 @@ def run_backtests(results, module_config):
                 try:
                     combined[i][combined[0].index('backtested')] = True
                     # if module_config['logging']:
+                    ticker = combined[i][combined[0].index('symbol')].split("'>")[1].split("</")[0].strip()
                     print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('alerts_triggered')].split(','))}, running backtest for {module_config['backtest_days']} days")
-                    backtest_ticker_concurrently(combined[i][combined[0].index('alerts_triggered')].split(','), combined[i][combined[0].index('symbol')],
-                                                 load_ticker_history_cached(combined[i][combined[0].index('symbol')], module_config), module_config)
-                    backtest_results = analyze_backtest_results(load_backtest_results(combined[i][combined[0].index('symbol')], module_config))
+                    backtest_ticker_concurrently(combined[i][combined[0].index('alerts_triggered')].split(','), ticker,
+                                                 load_ticker_history_cached(ticker, module_config), module_config)
+                    backtest_results = analyze_backtest_results(load_backtest_results(ticker, module_config))
                     for _backtest_key in analyzed_backtest_keys:
                     # for ii in range(combined[0].index('backtested') + 1, len(combined[0])):
                             # print(f"Report_headers {_report_headers[i]}")
@@ -342,12 +347,15 @@ if __name__ == '__main__':
             results = find_tickers()
             #do notification send
             send_email("andrew.smiley937@gmail.com","andrew.smiley937@gmail.com", f"MPB Traders (Hourly)  {datetime.datetime.now().strftime('%Y-%m-%d %H:00')}", generate_mpd_html_table(results['mpb']))
+            build_dashboard(module_config)
         else:
             print(f"Not currently trading hours ({datetime.datetime.now()}), skipping")
     else:
         results = find_tickers()
         # do notification send
         send_email("andrew.smiley937@gmail.com", "andrew.smiley937@gmail.com",f"MPB Traders (Hourly)  {datetime.datetime.now().strftime('%Y-%m-%d %H:00')}",generate_mpd_html_table(results['mpb']))
+        build_dashboard(module_config)
+        # generate_mpd_html_table(results['mpb'])
     # ticker_history = load_ticker_history_raw(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
     # ticke = load_ticker_history_pd_frame(ticker,client,1, "hour", "2023-07-06","2023-07-06",5000)
 

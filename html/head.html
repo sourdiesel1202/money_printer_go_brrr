@@ -48,7 +48,7 @@ $(document).ready(function(){
 //                keys = []
                 _columns = []
                 for (var key in tabledata[0]){
-                    _columns.push({title:key,formatter:"html",field:key,headerFilter:"input",sorter:"string",headerFilterPlaceholder:"enter multiple search queries separated by commas, i.e Avi,Corp,Baker",headerFilterFunc:matchAnyFilter})
+                    _columns.push({title:key,formatter:"html",field:key,headerFilter:"input",sorter:"string",headerFilterPlaceholder:"enter multiple search queries separated by commas i.e. sma,dmi,adx",headerFilterFunc:matchAnyFilter})
 //                    keys.push(key);
 //                    console.log(key)
 
@@ -66,12 +66,12 @@ $(document).ready(function(){
                     dataFiltered: function(filters, rows) {
 
                           var el = document.getElementById(tableId+"_rowcount");
-                          el.innerHTML = rows.length+ " record(s)";
+                          el.innerHTML = rows.length+ " symbol(s) found";
                     },
                     dataLoaded: function(data) {
 
                           var el = document.getElementById(tableId+"_rowcount");
-                          el.innerHTML = data.length+ " record(s)";
+                          el.innerHTML = data.length+ " symbol(s) found";
                 },
                 });
                 document.getElementById("download_csv_"+tableId).addEventListener("click", function () {

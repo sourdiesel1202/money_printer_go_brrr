@@ -15,6 +15,8 @@ def format_ticker_data(ticker_a, ticker_history_a,ticker_b, ticker_history_b, mo
     :return:
     '''
     matches= {"ticker_a":[], "ticker_b":[], "timestamps":[]}
+    # a_timestamps = [x.timestamp for x in ticker_history_a]
+    # b_timestamps = [x.timestamp for x in ticker_history_b]
     for i in range(1, module_config['shape_bars']):
         #only really care about n bars in the past, configured in module_config
         if ticker_history_a[-i].timestamp == ticker_history_b[-i].timestamp:

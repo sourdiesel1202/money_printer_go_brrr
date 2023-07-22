@@ -1,7 +1,12 @@
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import pandas as pd
+
+import s3
 from history import load_ticker_history_pd_frame
+from indicators import load_macd, load_sma, load_dmi_adx, load_rsi,load_support_resistance
+from indicators import load_dmi_adx
+from indicators import  load_death_cross, load_golden_cross, determine_death_cross_alert_type,determine_golden_cross_alert_type, did_golden_cross_alert, did_death_cross_alert
 
 def plot_ticker(ticker, ticker_history, module_config):
     # df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/finance-charts-apple.csv')
@@ -17,7 +22,7 @@ def plot_ticker(ticker, ticker_history, module_config):
 
 def plot_ticker_with_indicators(ticker, ticker_history, indicator_data, module_config):
 
-    df = load_ticker_history_pd_frame(ticker, ticker_history[-80:], convert_to_datetime=True, human_readable=True)
+    df = load_ticker_history_pd_frame(ticker, ticker_history[-module_config['plot_bars']:], convert_to_datetime=True, human_readable=True)
     subplot_titles = [x  for x in indicator_data.keys() if not indicator_data[x]['overlay']]
     # candle_fig  = make_subplots(rows=len([not x['overlay'] for x in indicator_data.values()]), cols=2, subplot_titles=subplot_titles)
     candle_fig = go.Figure(data=[go.Candlestick(x=df['date'],
@@ -56,7 +61,9 @@ def plot_ticker_with_indicators(ticker, ticker_history, indicator_data, module_c
         ])
     # candle_fig.show()
     # indicator_figure.show()
-    figures_to_html(ticker, [candle_fig, indicator_figure], f"html/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.html")
+    figures_to_html(ticker, [candle_fig, indicator_figure], f"html/{module_config['timespan_multiplier']}{module_config['timespan']}{ticker}.html")
+
+    s3.upload_file(f"html/{module_config['timespan_multiplier']}{module_config['timespan']}{ticker}.html","www.mpb-traders-data.com")
     pass
 
 # def plot_sma(ticker, ticker_history,indicator_data, module_config):
@@ -122,3 +129,54 @@ def figures_to_html(ticker,figs, filename):
             inner_html = fig.to_html().split('<body>')[1].split('</body>')[0]
             dashboard.write(inner_html)
         dashboard.write("</body></html>" + "\n")
+
+def build_indicator_dict(ticker, ticker_history, module_config):
+    indicator_dict = {
+        "sma": {
+            "plot": plot_indicator_data(ticker, ticker_history[-module_config['plot_bars']:],
+                                        load_sma(ticker, ticker_history, module_config), module_config,
+                                        name='sma10'),
+            "overlay": True
+        },
+        "ema50": {
+            "plot": plot_indicator_data(ticker, ticker_history[-module_config['plot_bars']:],
+                                        load_golden_cross(ticker, ticker_history, module_config)['sma_short'],
+                                        module_config, name='ema50', color='yellow'),
+            "overlay": True
+        },
+        "ema200": {
+            "plot": plot_indicator_data(ticker, ticker_history[-module_config['plot_bars']:],
+                                        load_golden_cross(ticker, ticker_history, module_config)['sma_long'],
+                                        module_config, name='ema200', color='purple'),
+            "overlay": True
+        },
+
+        "rsi": {
+            "plot": plot_indicator_data(ticker, ticker_history[-module_config['plot_bars']:],
+                                        load_rsi(ticker, ticker_history, module_config),
+                                        module_config, name='rsi', color='Blue'),
+            "overlay": False
+        },
+        "macd": {
+            "plot": plot_indicator_data_dual_y_axis(ticker, ticker_history[-module_config['plot_bars']:],
+                                                    load_macd(ticker, ticker_history, module_config),
+                                                    module_config, keys=['macd', 'signal'], colors=['green', 'red']),
+            "overlay": False
+        },
+        "dmi": {
+            "plot": plot_indicator_data_dual_y_axis(ticker, ticker_history[-module_config['plot_bars']:],
+                                                    load_dmi_adx(ticker, ticker_history, module_config),
+                                                    module_config, keys=['dmi+', 'dmi-', 'adx'],
+                                                    colors=['green', 'red', 'blue']),
+            "overlay": False
+        },
+        "s/r levels": {
+            "plot": plot_sr_lines(ticker, ticker_history[-module_config['plot_bars']:],
+                                  load_support_resistance(ticker, ticker_history, module_config, flatten=True),
+                                  module_config),
+            "overlay": True
+        }
+
+    }
+
+    return indicator_dict

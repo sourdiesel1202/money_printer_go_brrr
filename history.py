@@ -58,7 +58,7 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
         timespan = 'minute'
         multiplier = 30
         module_config['og_ts_multiplier'] = module_config['timespan_multiplier']
-        module_config['timespan_multiplier'] = multiplier
+        # module_config['timespan_multiplier'] = multiplier
     if cached:
         return load_ticker_history_cached(ticker, module_config)
     else:
@@ -142,7 +142,7 @@ def normalize_history_data_for_hour(ticker, ticker_history, module_config):
     # for i in range(1, ):
     result = []
     while True:
-        if i > (len(ticker_history) - int(60 / module_config['timespan_multiplier'])):
+        if i > (len(ticker_history) - int(60 / 30)):
             break
         normalized_time = timestamp_to_datetime(ticker_history[-i].timestamp)
         if module_config['logging']:
@@ -152,13 +152,13 @@ def normalize_history_data_for_hour(ticker, ticker_history, module_config):
         #         print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: History Record: {datetime.datetime.fromtimestamp(ticker_history[-i].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}: Is PreMarket data, Skipping")
         #     i = i+1
         #     continue
-        if (normalized_time + datetime.timedelta(minutes=module_config['timespan_multiplier'])).hour == 16 and (normalized_time + datetime.timedelta(minutes=module_config['timespan_multiplier'])).minute == 0:
+        if (normalized_time + datetime.timedelta(minutes=30)).hour == 16 and (normalized_time + datetime.timedelta(minutes=30)).minute == 0:
             result.append(ticker_history[-i])
             i = i + 1
             continue
         hour = {'opens':[ticker_history[-(i)].open],'closes':[ticker_history[-i].close],'highs':[ticker_history[-i].high], 'lows':[ticker_history[-i].low], 'volumes':[ticker_history[-i].volume], 'timestamps': [ticker_history[-i].timestamp]}
         increment_idx = 0
-        for ii in range(1,int(60/module_config['timespan_multiplier'])):
+        for ii in range(1,int(60/30)):
             if module_config['logging']:
                 print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Processing Previous Bar For: {datetime.datetime.fromtimestamp(ticker_history[-i].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}: {datetime.datetime.fromtimestamp(ticker_history[-(i+ii)].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:")
             hour['highs'].append(ticker_history[-(i+ii)].high)
@@ -173,11 +173,13 @@ def normalize_history_data_for_hour(ticker, ticker_history, module_config):
         #     pass
         now = datetime.datetime.now()
         # if normalized_time.day == now.day and normalized_time.month == now.month and normalized_time.year == now.year:#and now.minute > 30:
+        # print()
         if normalized_time.minute > 30:
-            th = TickerHistory(hour['opens'][-1], hour['closes'][0], max(hour['highs']), min(hour['lows']), sum(hour['volumes']), hour['timestamps'][-1])
+
+            th = TickerHistory(hour['opens'][-1], hour['closes'][0], max(hour['highs']), min(hour['lows']), sum(hour['volumes']), hour['timestamps'][0])
         else:
             th = TickerHistory(hour['opens'][-1], hour['closes'][0], max(hour['highs']), min(hour['lows']),
-                               sum(hour['volumes']), hour['timestamps'][0])
+                               sum(hour['volumes']), hour['timestamps'][-1])
         # else:
         #     th = TickerHistory(hour['opens'][-1], hour['closes'][0], max(hour['highs']), min(hour['lows']), sum(hour['volumes']), hour['timestamps'][-1])
         if module_config['logging']:
