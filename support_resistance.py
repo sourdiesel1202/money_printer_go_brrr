@@ -1,5 +1,7 @@
 # method 2: window shifting method
 # using the same ticker as the first example above
+from itertools import chain
+
 import numpy as np
 import yfinance as yf
 import matplotlib.dates as mpl_dates
@@ -19,7 +21,7 @@ def get_stock_price(ticker):
   return df
 # ticker = 'COST'
 # df = get_stock_price(ticker)
-def find_support_resistance_levels(ticker, ticker_history, module_config):
+def find_support_resistance_levels(ticker, ticker_history, module_config, flatten=False):
     # ticker = 'COST'
     # df = get_stock_price(ticker)
     # print(df)
@@ -55,7 +57,12 @@ def find_support_resistance_levels(ticker, ticker_history, module_config):
     pivots.sort(key=lambda x: x[1])
     _keys = [x[1] for x in pivots]
     n = 2
-    return [_keys[i:i + n] for i in range(0, len(_keys), n)]
+    if not flatten:
+        return [_keys[i:i + n] for i in range(0, len(_keys), n)]
+    else:
+        flattened_levels = list(chain.from_iterable(pivots))
+        flattened_levels.sort(key=lambda x: x)
+        return flattened_levels
     # plot_all(pivots, df)
     pass
 
@@ -88,3 +95,10 @@ def plot_all(levels, df):
     plt.hlines(level[1], xmin = df['date'][level[0]], xmax =
       max(df['date']), colors='blue', linestyle='--')
   fig.show()
+
+def find_nearest_support_level(sr_levels, ticker, ticker_history, module_config):
+    return  max([i for i in sr_levels if ticker_history[-1].close > i])
+    # below = max([i for i in myArr if myNumber > i])
+
+def find_nearest_resistance_level(sr_levels, ticker, ticker_history, module_config):
+    return  min([i for i in sr_levels if ticker_history[-1].close < i])

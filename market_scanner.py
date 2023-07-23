@@ -8,6 +8,7 @@ import os, operator
 import traceback
 import multiprocessing
 from enums import AlertType
+from polygon.rest import RESTClient
 from notification import send_email, generate_mpd_html_table
 # Press ⇧F10 to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
@@ -148,8 +149,8 @@ def build_ticker_results(ticker, ticker_results,ticker_history, client):
     if len(ticker_results[ticker]['directions']) >= module_config['report_alert_min']:
         plot_ticker_with_indicators(ticker, _th,build_indicator_dict(ticker, _th, module_config), module_config)
 def process_tickers(tickers):
-    client = polygon.RESTClient(api_key=module_config['api_key'])
-    # client = polygon.RESTClient(api_key=module_config['api_key'])
+    client = RESTClient(api_key=module_config['api_key'])
+    # client = RESTClient(api_key=module_config['api_key'])
     # _report_headers = ['timestamp','symbol','price','volume', 'macd_flag', 'rsi_flag', 'sma_flag', 'dmi_flag', 'adx_flag','golden_cross_flag','death_cross_flag', 'pick_level', 'conditions_matched','reasons', 'backtested']
     # ticker = "GE"
     # data_lines = read_csv(f"data/nyse.csv")
@@ -194,7 +195,7 @@ def process_tickers(tickers):
     process_results(ticker_results)
 
 def load_ticker_histories(_tickers):
-    client = polygon.RESTClient(api_key=module_config['api_key'])
+    client = RESTClient(api_key=module_config['api_key'])
     _module_config  =load_module_config(__file__.split("/")[-1].split(".py")[0])
     successes = []
     failures = [['symbol']]
@@ -280,7 +281,7 @@ def find_tickers():
                 _tickers = [tickers[i][0] for i in range(0, len(tickers))]
     else:
         _tickers = module_config['tickers']
-    # client = polygon.RESTClient(api_key=module_config['api_key'])
+    # client = RESTClient(api_key=module_config['api_key'])
 
     # del tickers[0]
         # tickers =
@@ -337,7 +338,7 @@ def run_backtests(results, module_config):
 if __name__ == '__main__':
     # freeze_support()
     start_time = time.time()
-    # client = polygon.RESTClient(api_key=module_config['api_key'])
+    # client = RESTClient(api_key=module_config['api_key'])
     # history_entries = load_ticker_history_csv("GE", client, 1, "hour", today, today, 500)
     # history_entries = load_ticker_history_raw("GE",  client, 1, "hour", today, today, 500)
     # did_dmi_alert(load_dmi_adx("GE", client, history_entries, module_config), history_entries, "GE", module_config)

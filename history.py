@@ -197,3 +197,50 @@ def normalize_history_data_for_hour(ticker, ticker_history, module_config):
     #         break
 
     pass
+
+
+def load_options_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False):
+    # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
+    # limit = 50000
+    if timespan == 'hour':
+        timespan = 'minute'
+        multiplier = 30
+        module_config['og_ts_multiplier'] = module_config['timespan_multiplier']
+        # module_config['timespan_multiplier'] = multiplier
+    if cached:
+        return load_ticker_history_cached(ticker, module_config)
+    else:
+        if os.path.exists(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv"):
+            clear_ticker_history_cache_entry(ticker,module_config)
+        history_data =  []
+        for entry in client.get_full_range_aggregate_bars(ticker,from_, to,multiplier = multiplier, timespan = timespan, limit=50000, sort='asc'):
+            entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
+            # print(f"{entry_date}: {ticker}| Open: {entry.open} High: {entry.high} Low: {entry.low} Close: {entry.close} Volume: {entry.volume}")
+            if (datetime.datetime.fromtimestamp(entry.timestamp / 1e3,tz=ZoneInfo('US/Eastern')).hour >= 9 if timespan =='minute' else 10) and (datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour <= 16 if timespan =='minute' else 15):
+                if timespan == 'minute':
+                    if (datetime.datetime.fromtimestamp(entry.timestamp / 1e3,tz=ZoneInfo('US/Eastern'))).hour == 9 and (datetime.datetime.fromtimestamp(entry.timestamp / 1e3,tz=ZoneInfo('US/Eastern'))).minute < 30:
+                        continue
+                    elif (datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))).hour >=16:
+                        continue
+                    else:
+                        history_data.append(TickerHistory(entry.open, entry.close, entry.high, entry.low, entry.volume,entry.timestamp))
+
+                else:
+                    history_data.append(TickerHistory(entry.open, entry.close,entry.high, entry.low, entry.volume, entry.timestamp))
+
+        if module_config['test_mode']:
+            if module_config['test_use_test_time']:
+                # print(f"using test time")
+                #rn make this work with the hours only
+                for i in range(0, len(history_data)):
+                    if timestamp_to_datetime(history_data[-i].timestamp).hour == module_config['test_time']:
+                        history_data = history_data[:-i+1]
+                        break
+        if module_config['timespan'] == 'hour':
+            history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
+            module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
+            # if module_config['logging']:
+        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
+        write_ticker_history_cached(ticker, history_data, module_config)
+
+        return history_data

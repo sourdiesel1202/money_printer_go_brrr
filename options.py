@@ -1,9 +1,31 @@
 import datetime
-
+import requests
 import mibian
 from functions import calculate_percentage
 from enums import PositionType, PriceGoalChangeType
-
+from polygon import OptionsClient
+import json
+# class MPBOptionsClient():
+#     _api_endpoint = "https://api.polygon.io"
+#     # def __init__(self):
+#     def __init__(self,api_key, *args, **kwargs):
+#         self.api_key=api_key
+#         # super().__init__(*args, **kwargs)
+#         # self.time = datetime.now()
+#     def load_options_contracts(self, ticker, module_config):
+#
+#         #ok so the idea here is start at 31 days DTE and look forward
+#         now = datetime.datetime.now()
+#
+#         for i in range(31, 90): #look 90 days out for contracts
+#             url = f"{self._api_endpoint}/v3/reference/options/contracts?apiKey={self.api_key}&underlying_ticker={ticker}&expiration_date=2023-08-19&expired=false"
+#             r = requests.get(url)
+#             raw_data = json.loads(r.text)
+#             if len(raw_data['result']) > 0:
+#                 return [x['ticker'] for x in raw_data['results']]
+#             print(json.loads(r.text))
+#         return
+#     # pass
 def calculate_dte(expiration_date):
     return (datetime.datetime.strptime(expiration_date,'%Y-%m-%d')-datetime.datetime.now()).days
 def calculate_price_change_for_entry(price_goal_change_type, position_type,asset_price,strike_price, price_goal, ask,  dte):
@@ -226,3 +248,38 @@ def calculate_price_change_for_exit(price_goal_change_type, position_type,asset_
         raise Exception(f"Decreased call price from {asset_price} ==> {_tmp_price} did not reach bid price")
 def calculate_price_change_percentages(stock_price, position_type, bid, ask, delta):
     pass
+
+
+def load_active_contracts(ticker,client, module_config):
+    pass
+    #ok so here we load the active contracts for the ticker
+
+def load_options_contracts(ticker, module_config):
+
+    # ok so the idea here is start at 31 days DTE and look forward
+    now = datetime.datetime.now()
+
+    for i in range(31, 90):  # look 90 days out for contracts
+        url = f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&expired=false"
+        r = requests.get(url)
+        raw_data = json.loads(r.text)
+        if len(raw_data['results']) > 0:
+            return [x['ticker'] for x in raw_data['results']]
+        print(json.loads(r.text))
+    return
+
+
+
+def mcv_load_options_contracts(ticker, module_config):
+
+    # ok so the idea here is start at 31 days DTE and look forward
+    now = datetime.datetime.now()
+    expires = {}
+    for i in range(31, 90):  # look 90 days out for contracts
+        url = f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&expired=false"
+        r = requests.get(url)
+        raw_data = json.loads(r.text)
+        if len(raw_data['results']) > 0:
+            expires[(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')]=[x['ticker'] for x in raw_data['results']]
+        print(json.loads(r.text))
+    return expires
