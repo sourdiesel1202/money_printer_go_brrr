@@ -393,7 +393,7 @@ def load_ticker_similar_trends(ticker, module_config):
     result = []
     # if module_config['logging']:
     print(f"{human_readable_datetime(datetime.datetime.now())}:${ticker}: Performing line comparison of ${ticker}")
-    for compare_ticker in [x.split(".csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]:
+    for compare_ticker in [x.split(f"{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/") if "O:" not in x]:
         try:
             if module_config['logging']:
                 print(f"{human_readable_datetime(datetime.datetime.now())}:${ticker}: Performing line comparison of ${ticker} <==> ${compare_ticker}")

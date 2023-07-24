@@ -28,7 +28,7 @@ def backtest_ticker_concurrently(alert_types, ticker, ticker_history, module_con
     # client = polygon.RESTClient(api_key=module_config['api_key'])
     # _th = [tickers[i] for i in range(0, len(tickers))]
     # _dispensarys = [x for x in dispensaries.keys()]
-    task_loads = [ticker_history[i:i + int(len(ticker_history)/12)+1] for i in range(0, len(ticker_history), int(len(ticker_history)/12)+1)]
+    task_loads = [ticker_history[i:i + int(len(ticker_history)/module_config['num_processes'])+1] for i in range(0, len(ticker_history), int(len(ticker_history)/module_config['num_processes'])+1)]
     # for k,v in dispensaries.items():
     processes = {}
     print(f"Processing {len(ticker_history)} in {len(task_loads)} load(s)")

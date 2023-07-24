@@ -52,7 +52,7 @@ if __name__ == '__main__':
         tickers = read_csv(f"data/nyse.csv")[1:]
         tickers = [tickers[i][0] for i in range(0, len(tickers))]
         print(f"Processing {len(tickers)} tickers")
-        pids = process_list_concurrently(tickers, process_tickers, int(len(tickers)/12)+1)
+        pids = process_list_concurrently(tickers, process_tickers, int(len(tickers)/module_config['num_processes'])+1)
         # combined =
         write_csv(f"{module_config['output_dir']}failures.csv",combine_csvs([f"{module_config['output_dir']}{x}failures.csv" for x in pids]))
         # tickers = module_config['tickers']

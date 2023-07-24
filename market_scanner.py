@@ -15,6 +15,7 @@ from notification import send_email, generate_mpd_html_table
 # from polygon import RESTClient,
 import polygon, datetime
 import time
+from options import analyze_option_data
 from zoneinfo import ZoneInfo
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, did_dmi_alert, did_adx_alert,determine_sma_alert_type
 from indicators import determine_rsi_alert_type, determine_macd_alert_type,determine_adx_alert_type,determine_dmi_alert_type,load_ticker_similar_trends
@@ -24,6 +25,7 @@ from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_
     clear_ticker_history_cache, load_ticker_history_cached
 from functions import load_module_config, read_csv, write_csv, combine_csvs, get_today, process_list_concurrently
 from enums import  PositionType
+from options import load_tickers_option_data
 from validation import validate_ticker
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
@@ -35,7 +37,7 @@ from plotting import build_indicator_dict, plot_ticker_with_indicators
 
 def process_results(ticker_results):
     #this gets called after all the ticker data is loaded, thus we can use cached data
-    _report_headers = ['timestamp','symbol','price','volume','long_validation', 'short_validation', 'pick_level', 'conditions_matched','alerts_triggered','similar_tickers', 'backtested']
+    _report_headers = ['timestamp','symbol','price','volume','long_validation','suggested_call', 'short_validation','suggested_put', 'pick_level', 'conditions_matched','alerts_triggered','similar_tickers', 'backtested']
     for k in analyzed_backtest_keys:
         _report_headers.append(k)
     results = []
@@ -60,7 +62,7 @@ def process_results(ticker_results):
             if len(matched_conditions) >= module_config['report_alert_min']:
                 # matched_conditions.sort(key=lambda x:x)
                 results.append([datetime.datetime.fromtimestamp(v['latest'] / 1e3, tz=ZoneInfo('US/Eastern')).strftime(
-                    "%Y-%m-%d %H:%M:%S"), f"<a href='{module_config['timespan_multiplier']}{module_config['timespan']}{k}.html'>{k}</a>", f"${v['close']}", v['volume'], v['long_validation'], v['short_validation']])
+                    "%Y-%m-%d %H:%M:%S"), f"<a href='{module_config['timespan_multiplier']}{module_config['timespan']}{k}.html'>{k}</a>", f"${v['close']}", v['volume'], v['long_validation'],'', v['short_validation'], ''])
                 results[-1].append(len(matched_conditions))
                 results[-1].append(','.join(matched_conditions).upper())
                 results[-1].append(','.join(v['directions']).upper())
@@ -217,12 +219,12 @@ def generate_report(_tickers, module_config):
     # _tickers = load_ticker_histories(_tickers)
     print(f"Loading history data for {len(_tickers)} tickers")
     if module_config['run_concurrently']:
-        process_list_concurrently(_tickers, load_ticker_histories,int(len(_tickers)/12)+1)
+        process_list_concurrently(_tickers, load_ticker_histories,int(len(_tickers)/module_config['num_processes'])+1)
     else:
         load_ticker_histories(_tickers)
-    _tickers = [x.split(f"{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]
+    _tickers = [x.split(f"{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/") if "O:" not in x]
     if module_config['run_concurrently']:
-        task_loads = [_tickers[i:i + int(len(_tickers)/12)+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
+        task_loads = [_tickers[i:i + int(len(_tickers)/module_config['num_processes'])+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
         # for k,v in dispensaries.items():
         processes = {}
         print(f"Processing {len(_tickers)} in {len(task_loads)} load(s)")
@@ -298,11 +300,58 @@ def find_tickers():
         write_csv("mpb.csv", combined)
     except:
         print(f"cannot write file")
+
     results = {"mpb": combined, "mpb_backtested":None}
+    #ok so once we get down here go ahead and load the option data
+    load_option_data(results,module_config)
     run_backtests(results, module_config)
     print(f"API KEY: {module_config['api_key']}")
+
     return results
     #ok so once we are here, let's go ahead and find the tickers that we need to backtest and run int
+
+
+def load_option_data(results, module_config):
+    combined = results['mpb']
+    # if module_config['backtest']:
+    print("##############\nLoading Market Scanner Option Data\n##############")
+    # ticker =
+    tickers = [combined[i][combined[0].index('symbol')].split("'>")[1].split("</")[0].strip() for i in range(1, len(combined))]
+    process_list_concurrently(tickers,load_tickers_option_data, int(len(tickers)/module_config['num_processes'])+1 )
+    print("##############\nLoaded Market Scanner Option Data\n##############")
+    # combined[0].insert(combined[0].index('long_validation'), 'suggested_call')
+    # combined[0].insert(combined[0].index('short_validation'), 'suggested_put')
+    # combined[0].insert(combined[0].index('long_validation'), 'recommended_put')
+    for i in range(1, len(combined)):
+        # combined[i].insert(combined[0].index('short_validation'), 'suggested_put')
+        ticker = combined[i][combined[0].index('symbol')].split("'>")[1].split("</")[0].strip()
+        short_options = analyze_option_data(PositionType.SHORT,ticker,load_ticker_history_cached(ticker,module_config), module_config)
+        if len(short_options) == 0:
+            short_option = {'ticker':''}
+        else:
+            short_option = short_options[0]
+
+        long_options = analyze_option_data(PositionType.LONG, ticker,
+                                            load_ticker_history_cached(ticker, module_config), module_config)
+        if len(long_options) == 0:
+            long_option = {'ticker': ticker}
+        else:
+            long_option = long_options[0]
+        # long_option = analyze_option_data(PositionType.LONG,ticker,load_ticker_history_cached(ticker,module_config), module_config)[0]
+        short_option_str = f"<a href='{module_config['timespan_multiplier']}{module_config['timespan']}{short_option['ticker']}.html'>{short_option['ticker']}</a>"
+        long_option_str = f"<a href='{module_config['timespan_multiplier']}{module_config['timespan']}{long_option['ticker']}.html'>{long_option['ticker']}</a>"
+        combined[i][combined[0].index('suggested_put')]= short_option_str
+        combined[i][combined[0].index('suggested_call')]= long_option_str
+        # combined[i].insert(combined[0].index('long_validation'), long_option_str)
+
+    write_csv("mpb.csv", combined)
+    #once we get here, we need to update the report to include our preferred contracts for long and short
+
+    long_contract = []
+    # for i in range(1, len(combined)):
+    #     if int(combined[i][combined[0].index('pick_level')]) >= module_config['report_alert_min']:
+    #         pass
+
 
 def run_backtests(results, module_config):
     combined = results['mpb']

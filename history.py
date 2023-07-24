@@ -213,7 +213,8 @@ def load_options_history_raw(ticker,client, multiplier = 1, timespan = "hour", f
         if os.path.exists(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv"):
             clear_ticker_history_cache_entry(ticker,module_config)
         history_data =  []
-        for entry in client.get_full_range_aggregate_bars(ticker,from_, to,multiplier = multiplier, timespan = timespan, limit=50000, sort='asc'):
+        for entry in client.get_full_range_aggregate_bars(ticker,from_, to,multiplier = multiplier, timespan = timespan, sort='asc', run_parallel=False):
+            entry = TickerHistory(entry['o'],entry['c'],entry['h'],entry['l'],entry['v'],entry['t'])
             entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
             # print(f"{entry_date}: {ticker}| Open: {entry.open} High: {entry.high} Low: {entry.low} Close: {entry.close} Volume: {entry.volume}")
             if (datetime.datetime.fromtimestamp(entry.timestamp / 1e3,tz=ZoneInfo('US/Eastern')).hour >= 9 if timespan =='minute' else 10) and (datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).hour <= 16 if timespan =='minute' else 15):
@@ -236,11 +237,16 @@ def load_options_history_raw(ticker,client, multiplier = 1, timespan = "hour", f
                     if timestamp_to_datetime(history_data[-i].timestamp).hour == module_config['test_time']:
                         history_data = history_data[:-i+1]
                         break
-        if module_config['timespan'] == 'hour':
-            history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
-            module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
+        # if module_config['timespan'] == 'hour':
+        #     history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
+        #     module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
             # if module_config['logging']:
-        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
-        write_ticker_history_cached(ticker, history_data, module_config)
+        if len(history_data) >0:
+            print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
+            write_ticker_history_cached(ticker, history_data, module_config)
 
         return history_data
+
+
+def load_cached_option_tickers(ticker, module_config):
+    return [x.split(f"{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/") if f"O:{ticker}" in x]

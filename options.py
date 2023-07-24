@@ -1,10 +1,21 @@
 import datetime
+import traceback
+# from ctypes import _CData
+
 import requests
 import mibian
-from functions import calculate_percentage
+from functions import calculate_percentage, get_today, load_module_config
 from enums import PositionType, PriceGoalChangeType
 from polygon import OptionsClient
 import json
+import polygon
+from history import load_options_history_raw, load_ticker_history_cached, load_cached_option_tickers
+from functions import human_readable_datetime, timestamp_to_datetime
+from polygon.options import OptionSymbol
+
+from plotting import plot_ticker_with_indicators, build_indicator_dict
+
+
 # class MPBOptionsClient():
 #     _api_endpoint = "https://api.polygon.io"
 #     # def __init__(self):
@@ -254,32 +265,112 @@ def load_active_contracts(ticker,client, module_config):
     pass
     #ok so here we load the active contracts for the ticker
 
-def load_options_contracts(ticker, module_config):
+# def load_options_contracts(ticker, module_config):
+#
+#     # ok so the idea here is start at 31 days DTE and look forward
+#     now = datetime.datetime.now()
+#
+#     for i in range(31, 90):  # look 90 days out for contracts
+#         url = f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}"
+#         r = requests.get(url)
+#         raw_data = json.loads(r.text)
+#         if len(raw_data['results']) > 0:
+#             return [x['ticker'] for x in raw_data['results']]
+#         print(json.loads(r.text))
+#     return
 
-    # ok so the idea here is start at 31 days DTE and look forward
-    now = datetime.datetime.now()
 
-    for i in range(31, 90):  # look 90 days out for contracts
-        url = f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&expired=false"
-        r = requests.get(url)
-        raw_data = json.loads(r.text)
-        if len(raw_data['results']) > 0:
-            return [x['ticker'] for x in raw_data['results']]
-        print(json.loads(r.text))
-    return
+    # contract_tickers
+def analyze_option_data(position_type,ticker, ticker_history, module_config):
 
+    # client = polygon.OptionsClient(api_key=module_config['api_key'])
+    # [x.split(".csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]
+    results = []
+    for contract_ticker in load_cached_option_tickers(ticker, module_config):
+        contract_history = load_ticker_history_cached(contract_ticker, module_config)
+        if (timestamp_to_datetime(contract_history[-1].timestamp).day != timestamp_to_datetime(ticker_history[-1].timestamp).day) or (timestamp_to_datetime(contract_history[-1].timestamp).month != timestamp_to_datetime(ticker_history[-1].timestamp).month) or (timestamp_to_datetime(contract_history[-1].timestamp).hour != timestamp_to_datetime(ticker_history[-1].timestamp).hour) or (timestamp_to_datetime(contract_history[-1].timestamp).minute != timestamp_to_datetime(ticker_history[-1].timestamp).minute):
+            continue
+        option_symbol = OptionSymbol(contract_ticker)
+        dte  = (datetime.datetime(*option_symbol.expiry.timetuple()[:-4]) - datetime.datetime.now()).days
+        if option_symbol.call_or_put.upper() == (PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION )[0].upper():
+            if position_type == PositionType.LONG:
+                _tmp_iv = mibian.BS([ticker_history[-1].close, float(option_symbol.strike_price), 0, dte], callPrice=contract_history[-1].close).impliedVolatility
+            else:
+                _tmp_iv = mibian.BS([ticker_history[-1].close, float(option_symbol.strike_price), 0, dte], putPrice=contract_history[-1].close).impliedVolatility
+            # _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
+            greeks = mibian.BS([ticker_history[-1].close, float(option_symbol.strike_price), 0, dte], volatility=_tmp_iv)
+            results.append({
+                "total_volume":sum([x.volume for x in contract_history]),
+                "last_traded": timestamp_to_datetime(contract_history[-1].timestamp),
+                "ticker": contract_ticker,
+                "iv": _tmp_iv,
+                "delta":float(greeks.callDelta / 100 if position_type == PositionType.LONG else greeks.putDelta / 100),
+                "theta":float(greeks.callTheta / 100 if position_type == PositionType.LONG else greeks.putTheta / 100),
+                "ask":contract_history[-1].close
+            })
 
+    results.sort(key=lambda x: x['total_volume'], reverse=True)
+        #
+    #expecting contract data to be a dict of expiry dates that contain  a dict containing the option symbols and the history list
+    #idk what hte right approach here is, highest volume for now?
+    # results = {}
+    # for expry_date, contracts  in contract_data.items():
 
-def mcv_load_options_contracts(ticker, module_config):
+    results = results[:5]
+    results.sort(key=lambda x: x['delta'], reverse=True)
+    return results
+
+def load_tickers_option_data(tickers, module_config={}):
+    if len([x for x in module_config.keys()]) == 0:
+        module_config = load_module_config("market_scanner") #doing this to allow for concurrency
+    for ticker in tickers:
+        #just iterate through and load the data
+        ticker_history = load_ticker_history_cached(ticker, module_config)
+        load_ticker_option_data(ticker, ticker_history, module_config)
+
+def load_ticker_option_data(ticker, ticker_history, module_config):
 
     # ok so the idea here is start at 31 days DTE and look forward
     now = datetime.datetime.now()
     expires = {}
-    for i in range(31, 90):  # look 90 days out for contracts
-        url = f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&expired=false"
-        r = requests.get(url)
-        raw_data = json.loads(r.text)
-        if len(raw_data['results']) > 0:
-            expires[(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')]=[x['ticker'] for x in raw_data['results']]
-        print(json.loads(r.text))
-    return expires
+    for i in range(30, 60):  # look 90 days out for contracts
+        tin_per = float(float(40/100) * ticker_history[-1].close)
+        strike_price_query = f"strike_price.gte={ticker_history[-1].close - tin_per}&strike_price.lte={ticker_history[-1].close + tin_per}"
+        # urls =[f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&contract_type=put&{strike_price_query}",f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&{strike_price_query}&limit=500"]
+        urls =[f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&{strike_price_query}&limit=500"]
+        for url in urls:
+            r = requests.get(url)
+            raw_data = json.loads(r.text)
+            if len(raw_data['results']) > 0:
+                if (now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')  not in expires:
+                    expires[(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')] = []#=[x['ticker'] for x in raw_data['results']]
+                for x in raw_data['results']:
+                    expires[(now + datetime.timedelta(days=i)).strftime('%Y-%m-%d')].append(x['ticker'])
+                    print(f"{x['ticker']}:{x['contract_type']}:{x['strike_price']}")
+
+
+    # ok so once we have our contracts and dates, we can load the data for the contracts/dates
+
+    # for ticker_a in module_config['tickers']:
+    #     contract_tickers = mcv_load_options_contracts(ticker_a, module_config)
+    options_client = polygon.OptionsClient(api_key=module_config['api_key'])
+    # contract_data = {}
+    _contract_data = []
+    for _date in expires:
+        print(f"Found {len(expires[_date])} contracts at date {_date}")
+        for option_contract in expires[_date]:
+            try:
+                contract_dat = load_options_history_raw(option_contract, options_client, module_config['timespan_multiplier'], module_config['timespan'],get_today(module_config, minus_days=14), get_today(module_config), 50000,module_config)
+                if len(contract_dat)> 0:
+                    _contract_data.append(option_contract)
+                    plot_ticker_with_indicators(option_contract, contract_dat, build_indicator_dict(ticker, contract_dat, module_config),module_config)
+
+            except:
+                traceback.print_exc()
+            pass
+
+
+    #once we get HERE, we can determine the contracts with the most volumne
+    return _contract_data
+    # return expires
+

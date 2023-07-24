@@ -63,7 +63,7 @@ def plot_ticker_with_indicators(ticker, ticker_history, indicator_data, module_c
     # indicator_figure.show()
     figures_to_html(ticker, [candle_fig, indicator_figure], f"html/{module_config['timespan_multiplier']}{module_config['timespan']}{ticker}.html")
 
-    s3.upload_file(f"html/{module_config['timespan_multiplier']}{module_config['timespan']}{ticker}.html","www.mpb-traders-data.com")
+    # s3.upload_file(f"html/{module_config['timespan_multiplier']}{module_config['timespan']}{ticker}.html","www.mpb-traders-data.com")
     pass
 
 # def plot_sma(ticker, ticker_history,indicator_data, module_config):
