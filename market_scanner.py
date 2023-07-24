@@ -224,7 +224,7 @@ def generate_report(_tickers, module_config):
         load_ticker_histories(_tickers)
     _tickers = [x.split(f"{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/") if "O:" not in x]
     if module_config['run_concurrently']:
-        task_loads = [_tickers[i:i + int(len(_tickers)/module_config['num_processes'])+1] for i in range(0, len(_tickers), int(len(_tickers)/12)+1)]
+        task_loads = [_tickers[i:i + int(len(_tickers)/module_config['num_processes'])+1] for i in range(0, len(_tickers), int(len(_tickers)/module_config['num_processes'])+1)]
         # for k,v in dispensaries.items():
         processes = {}
         print(f"Processing {len(_tickers)} in {len(task_loads)} load(s)")
