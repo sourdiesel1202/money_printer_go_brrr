@@ -4,7 +4,7 @@ import time
 from enums import OrderType
 import datetime,io
 from zoneinfo import ZoneInfo
-from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today, timestamp_to_datetime, human_readable_datetime
+from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today, timestamp_to_datetime, human_readable_datetime, execute_query, execute_update
 import pandas as pd
 from stockstats import wrap
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
@@ -25,6 +25,19 @@ class TickerHistory:
         self.volume = volume
         self.timestamp =timestamp
         self.dt = timestamp_to_datetime(timestamp)
+
+def write_ticker_history_db_entry(connection, ticker, th, module_config):
+
+    # history_sql = f"REPLACE INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES ('','',)"
+    if len(execute_query(connection, f"select * from history_tickerhistory where timestamp={th.timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=False)) == 1:
+
+        history_sql = f"Insert INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES ((select id from tickers_ticker where symbol='{ticker}'), {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')"
+        execute_update(connection,history_sql,verbose=False, auto_commit=True)
+
+def write_ticker_history_db_entries(connection, ticker, ticker_history, module_config):
+    for th in ticker_history:
+        write_ticker_history_db_entry(connection,ticker, th, module_config)
+
 def convert_ticker_history_to_csv(ticker, ticker_history):
     rows = [['o','c','h','l','v','t']]
     for history in ticker_history:
@@ -51,7 +64,7 @@ def clear_ticker_history_cache(module_config):
 def clear_ticker_history_cache_entry(ticker, module_config):
     os.system(f"rm {module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")
     # os.mkdir(f"{module_config['output_dir']}cached/")
-def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False):
+def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False, connection=None):
     # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
     # limit = 50000
     if timespan == 'hour':
@@ -88,9 +101,13 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
                     if timestamp_to_datetime(history_data[-i].timestamp).hour == module_config['test_time']:
                         history_data = history_data[:-i+1]
                         break
+        if connection is not None:
+            write_ticker_history_db_entries(connection, ticker, history_data, {"timespan":timespan, "timespan_multiplier":multiplier})
         if module_config['timespan'] == 'hour':
             history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
             module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
+            if connection is not None:
+                write_ticker_history_db_entries(connection, ticker, history_data, module_config)
             # if module_config['logging']:
         print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
         write_ticker_history_cached(ticker, history_data, module_config)

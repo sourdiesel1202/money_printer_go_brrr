@@ -2,7 +2,10 @@ import datetime
 import json, csv, os
 import multiprocessing
 import time
+import traceback
 from zoneinfo import ZoneInfo
+
+import pymysql
 
 
 def load_module_config(module):
@@ -36,6 +39,16 @@ def generate_csv_string(rows):
         res = f.read()
     delete_csv(filename)
     return res
+
+def combine_jsons(files):
+    results = []
+    for _file in files:
+        with open(_file, "r") as f:
+
+            for entry in json.loads(f.read()):
+                results.append(entry)
+        os.system(f"rm {_file}")
+    return results
 def combine_csvs(files):
     _filestr = '\n'.join(files)
     # print(f"Combining the following files {_filestr}")
@@ -99,3 +112,62 @@ def process_list_concurrently(data, process_function, batch_size):
         print(f"The following child processes are still running: {process_str}")
         time.sleep(10)
     return pids
+
+
+def obtain_db_connection(module_config):
+    pass
+    return pymysql.connect(
+        host=module_config['database']['host'],
+        user=module_config['database']['username'],
+        password=module_config['database']['password'],
+        db=module_config['database']['db'],
+    )
+    # if 'service' in creds[env].keys():
+    #     connection = cx_Oracle.connect(creds[env]['username'], decrypt_message(creds[env]['password']),
+    #                                    cx_Oracle.makedsn(creds[env]['host'], creds[env]['port'],
+    #                                                      service_name=creds[env]['service']))
+    # else:
+    #     connection = cx_Oracle.connect(creds[env]['username'], creds[env]['password'],
+    #                                    cx_Oracle.makedsn(creds[env]['host'], creds[env]['port'],
+    #                                                      sid=creds[env]['sid']))
+    # print(f"connection obtained to {env}: {creds[env]['host']}")
+    # return connection
+
+def execute_query(connection,sql, verbose=True):
+    cursor = connection.cursor()
+    try:
+        if verbose:
+            print(f"Executing\n{sql}")
+        cursor.execute(sql)
+        result= []
+        result.append([row[0] for row in cursor.description])
+        for row in cursor.fetchall():
+            result.append([str(x) for x in row])
+        if verbose:
+            print(f"{len(result)-1} rows returned")
+        cursor.close()
+        return result
+
+    except:
+        cursor.close()
+        traceback.print_exc()
+
+def execute_update(connection,sql, auto_commit=True, verbose=True):
+    if verbose:
+        print(sql)
+    cursor = connection.cursor()
+    try:
+        # pass
+        cursor.execute(sql)
+
+        if auto_commit:
+            try:
+                cursor.commit()
+            except:
+                pass
+            connection.commit()
+        cursor.close()
+        pass
+    except:
+        cursor.close()
+        traceback.print_exc()

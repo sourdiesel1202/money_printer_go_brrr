@@ -36,19 +36,22 @@ def build_dashboard(module_config):
     s3dir = ''
 
     files = [x for x in os.listdir(f"html/") if f"{module_config['timespan_multiplier']}{module_config['timespan']}" in x]
-    for _file in files:
-        ticker_link = urllib.parse.quote(_file,safe='')
-
-        os.system(f"mv html/{_file} html/{ticker_link}")
-        # if ticker_link != _file:
+    # for _file in files:
+    #     ticker_link = urllib.parse.quote(_file,safe='')
+    #
+    #     os.system(f"mv html/{_file} html/{ticker_link}")
+    #     # if ticker_link != _file:
         #     os.system(f"rm html/{_file}")
     files = [f"html/{x}" for x in os.listdir(f"html/") if f"{module_config['timespan_multiplier']}{module_config['timespan']}" in x]
     totalsize = sum([os.stat(f).st_size for f in files])
     # otalsize = sum([os.stat(f).st_size for f in [x.split(".csv")[ for x in os.listdir(f"html/") if f"{module_config['timespan_multiplier']}{module_config['timespan']}" in x]])
     # totalsize = sum([os.stat(f).st_size for f in files])
-    with tqdm(desc='upload', ncols=60,
-              total=totalsize, unit='B', unit_scale=1) as pbar:
-        s3.fast_upload(boto3.Session(), bucketname, s3dir, files, pbar.update)
+
+    # with tqdm(desc='upload', ncols=60,
+    #           total=totalsize, unit='B', unit_scale=1) as pbar:
+    #     s3.fast_upload(boto3.Session(), bucketname, s3dir, files, pbar.update)
+
+
     # process_list_concurrently(files, upload_html_concurrently,int(len(files)/module_config['num_processes'])+1 )
     # upload_html_concurrently()
     s3.upload_file(f"html/dashboard{module_config['timespan_multiplier']}{module_config['timespan']}.html", "www.mpb-traders-data.com")
