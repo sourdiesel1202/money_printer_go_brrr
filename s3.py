@@ -1,4 +1,6 @@
 import logging
+import urllib
+
 import boto3
 import botocore
 import boto3.s3.transfer as s3transfer
@@ -38,6 +40,10 @@ def fast_upload(session, bucketname, s3dir, filelist, progress_func, workers=20)
     )
     s3t = s3transfer.create_transfer_manager(s3client, transfer_config)
     for src in filelist:
+        # ticker_link = urllib.parse.quote(src,
+        #                                  safe='')
+
+        # os.system(f"mp html/{src} html/{ticker_link}")
         dst = os.path.join(s3dir, os.path.basename(src))
         s3t.upload(
             src, bucketname, dst,

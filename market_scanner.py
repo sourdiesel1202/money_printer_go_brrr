@@ -1,5 +1,6 @@
 # This is a sample Python script.
 # import operator import itemgetter
+import urllib.parse
 from multiprocessing import freeze_support
 from mpb_html import build_dashboard
 from iteration_utilities import chained
@@ -61,8 +62,9 @@ def process_results(ticker_results):
                     matched_conditions.append(kk)
             if len(matched_conditions) >= module_config['report_alert_min']:
                 # matched_conditions.sort(key=lambda x:x)
+                ticker_link = urllib.parse.quote(f"{module_config['timespan_multiplier']}{module_config['timespan']}{k}.html", safe='')
                 results.append([datetime.datetime.fromtimestamp(v['latest'] / 1e3, tz=ZoneInfo('US/Eastern')).strftime(
-                    "%Y-%m-%d %H:%M:%S"), f"<a href='{module_config['timespan_multiplier']}{module_config['timespan']}{k}.html'>{k}</a>", f"${v['close']}", v['volume'], v['long_validation'],'', v['short_validation'], ''])
+                    "%Y-%m-%d %H:%M:%S"), f"<a href='{ticker_link}'>{k}</a>", f"${v['close']}", v['volume'], v['long_validation'],'', v['short_validation'], ''])
                 results[-1].append(len(matched_conditions))
                 results[-1].append(','.join(matched_conditions).upper())
                 results[-1].append(','.join(v['directions']).upper())
@@ -337,9 +339,11 @@ def load_option_data(results, module_config):
             long_option = {'ticker': ticker}
         else:
             long_option = long_options[0]
+        put_link = urllib.parse.quote(f"{module_config['timespan_multiplier']}{module_config['timespan']}{short_option['ticker']}.html",safe='')
+        call_link = urllib.parse.quote(f"{module_config['timespan_multiplier']}{module_config['timespan']}{long_option['ticker']}.html",safe='')
         # long_option = analyze_option_data(PositionType.LONG,ticker,load_ticker_history_cached(ticker,module_config), module_config)[0]
-        short_option_str = f"<a href='{module_config['timespan_multiplier']}{module_config['timespan']}{short_option['ticker']}.html'>{short_option['ticker']}</a>"
-        long_option_str = f"<a href='{module_config['timespan_multiplier']}{module_config['timespan']}{long_option['ticker']}.html'>{long_option['ticker']}</a>"
+        short_option_str = f"<a href='{put_link}'>{short_option['ticker']}</a>"
+        long_option_str = f"<a href='{call_link}'>{long_option['ticker']}</a>"
         combined[i][combined[0].index('suggested_put')]= short_option_str
         combined[i][combined[0].index('suggested_call')]= long_option_str
         # combined[i].insert(combined[0].index('long_validation'), long_option_str)

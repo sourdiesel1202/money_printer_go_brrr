@@ -1,5 +1,6 @@
 import datetime
 import os
+import urllib
 
 import boto3
 from tqdm import tqdm
@@ -35,7 +36,14 @@ def build_dashboard(module_config):
     s3dir = ''
 
     files = [x for x in os.listdir(f"html/") if f"{module_config['timespan_multiplier']}{module_config['timespan']}" in x]
-    totalsize = sum([os.stat(f"html/{f}").st_size for f in files])
+    for _file in files:
+        ticker_link = urllib.parse.quote(_file,safe='')
+
+        os.system(f"mv html/{_file} html/{ticker_link}")
+        # if ticker_link != _file:
+        #     os.system(f"rm html/{_file}")
+    files = [f"html/{x}" for x in os.listdir(f"html/") if f"{module_config['timespan_multiplier']}{module_config['timespan']}" in x]
+    totalsize = sum([os.stat(f).st_size for f in files])
     # otalsize = sum([os.stat(f).st_size for f in [x.split(".csv")[ for x in os.listdir(f"html/") if f"{module_config['timespan_multiplier']}{module_config['timespan']}" in x]])
     # totalsize = sum([os.stat(f).st_size for f in files])
     with tqdm(desc='upload', ncols=60,
@@ -48,5 +56,12 @@ def build_dashboard(module_config):
 def upload_html_concurrently(files):
     for _file in files:
         print(f"{os.getpid()}: uploading {files.index(_file)}/{len(files)}")
+        ticker_link = urllib.parse.quote(_file,
+                                         safe='')
+
+        # os.system(f"mp html/{_file} html/{ticker_link}")
+        os.system(f"html/{ticker_link}")
+
+
         s3.upload_file(f"html/{_file}","www.mpb-traders-data.com")
     # pass
