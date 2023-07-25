@@ -43,10 +43,15 @@ def convert_ticker_history_to_csv(ticker, ticker_history):
     for history in ticker_history:
         rows.append([history.open, history.close, history.high, history.low, history.volume, history.timestamp])
     return rows
-def load_ticker_history_cached(ticker,module_config):
+def load_ticker_history_cached(ticker,module_config, connection=None):
     ticker_history = []
-    for entry in read_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[1:]:
-        ticker_history.append(TickerHistory(*[float(x) for x in entry]))
+
+    if connection is None:
+        for entry in read_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[1:]:
+            ticker_history.append(TickerHistory(*[float(x) for x in entry]))
+    else:
+        records =execute_query(connection, f"select open, close, high, low, volume, timestamp from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp asc")
+        ticker_history =[TickerHistory(*[float(x) if '.' in x else int(x) for x in records[i]]) for i in range(1, len(records))]
 
     if module_config['test_mode']:
         if module_config['test_use_test_time']:
@@ -54,8 +59,8 @@ def load_ticker_history_cached(ticker,module_config):
             # rn make this work with the hours only
             for i in range(0, len(ticker_history)):
                 if timestamp_to_datetime(ticker_history[-i].timestamp).hour == module_config['test_time']:
-                    history_data = ticker_history[:-i + 1]
-                    break
+                    return ticker_history[:-i + 1]
+                    # break
 
     return ticker_history
 def clear_ticker_history_cache(module_config):

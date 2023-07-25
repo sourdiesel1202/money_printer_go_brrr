@@ -57,9 +57,6 @@ if __name__ == '__main__':
         write_tickers_to_db(connection, tickers, module_config)
         client = RESTClient(api_key=module_config['api_key'])
         process_list_concurrently([x for x in tickers], load_ticker_histories, int(len(tickers)/module_config['num_processes'])+1)
-
     except:
         connection.close()
-
-
     print(f"\nCompleted MPB Initial Database Load in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")

@@ -7,7 +7,8 @@ import polygon, datetime
 
 from history import load_ticker_history_raw,load_ticker_history_cached
 # from validation import validate_ticker
-from functions import load_module_config, get_today
+from functions import load_module_config, get_today, obtain_db_connection
+
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 module_config = load_module_config('market_scanner_tester')
 # from shape import compare_tickers
@@ -15,12 +16,13 @@ from plotting import plot_ticker_with_indicators, plot_indicator_data,plot_indic
 
 if __name__ == '__main__':
     start_time = time.time()
-    client = polygon.RESTClient(api_key=module_config['api_key'])
+    # client = polygon.RESTClient(api_key=module_config['api_key'])
 
     module_config['logging']=True
     for ticker_a in module_config['tickers']:
         # for ticker_b in module_config['compare_tickers']:
-        ticker_history_a = load_ticker_history_cached(ticker_a, module_config)
+        connection = obtain_db_connection(module_config)
+        ticker_history_a = load_ticker_history_cached(ticker_a, module_config, connection=connection)
         # indicator_dict = {
         #     "sma": {
         #         "plot": plot_indicator_data(ticker_a, ticker_history_a[-80:], load_sma(ticker_a, ticker_history_a,module_config), module_config, name='sma10'),
