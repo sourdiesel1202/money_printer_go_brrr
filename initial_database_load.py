@@ -35,7 +35,7 @@ def load_ticker_histories(_tickers):
             print(f"Attempting to load data for {_tickers.index(ticker)}/{len(_tickers)}")
             try:
                 # if not module_config['test_mode']:
-                _ = load_ticker_history_raw(ticker['symbol'],  client, module_config['timespan_multiplier'], module_config['timespan'], get_today(module_config, minus_days=365*2), today, 50000, module_config, connection=connection)
+                _ = load_ticker_history_raw(ticker['symbol'],  client, module_config['timespan_multiplier'], module_config['timespan'], get_today(module_config, minus_days=365*2), get_today(module_config, minus_days=2), 50000, module_config, connection=connection)
                 # else:
                 # _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), 11, limit=50000, module_config=_module_config)
                 successes.append(ticker)
@@ -55,8 +55,18 @@ if __name__ == '__main__':
         tickers = load_nyse_tickers_cached(module_config)
         print(f"Writing Ticker Data for {len(tickers)} tickers")
         write_tickers_to_db(connection, tickers, module_config)
+        unloaded_tickers = []
+        rows = execute_query(connection, "select t.* from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is null")
+        for i in range(1, len(rows)):
+            entry = {}
+            for ii in range(0, len(rows[0])):
+                entry[rows[0][ii]] = rows[i][ii]
+            unloaded_tickers.append(entry)
+            # unloaded_tickers.append({x[]})
+
         client = RESTClient(api_key=module_config['api_key'])
-        process_list_concurrently([x for x in tickers], load_ticker_histories, int(len(tickers)/module_config['num_processes'])+1)
+        # load_ticker_histories(unloaded_tickers)
+        process_list_concurrently(unloaded_tickers, load_ticker_histories, int(len(unloaded_tickers)/module_config['num_processes'])+1)
     except:
         connection.close()
     print(f"\nCompleted MPB Initial Database Load in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")

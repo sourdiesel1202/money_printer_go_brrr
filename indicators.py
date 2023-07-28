@@ -20,6 +20,109 @@ from support_resistance import find_support_resistance_levels
 
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 
+
+def get_indicator_inventory():
+    '''
+    The idea here is that we can maintain a listing of indicators to test when we process history as a dictionary
+    did alert function checks if the indicator has flagged (i.e. crossover occurred, etc)
+    determine alert type function determines the alert type that has fired
+    ignroe sma alert function silences the alert based upon the conditions specified
+    :param connection:
+    :param ticker:
+    :param ticker_history:
+    :param module_config:
+    :return:
+    '''
+    return {
+        Indicator.SMA:{
+            InventoryFunctionTypes.LOAD: load_sma,
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_sma_alert_type,
+            InventoryFunctionTypes.DID_ALERT: did_sma_alert,
+            InventoryFunctionTypes.IGNORE: ignore_sma_alert
+        },
+
+        Indicator.RSI:{
+            InventoryFunctionTypes.LOAD: load_rsi,
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_rsi_alert_type,
+            InventoryFunctionTypes.DID_ALERT: did_rsi_alert,
+            InventoryFunctionTypes.IGNORE: ignore_rsi_alert
+
+        },
+        Indicator.DMI: {
+            InventoryFunctionTypes.LOAD: load_dmi_adx,
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_dmi_alert_type,
+            InventoryFunctionTypes.DID_ALERT: did_dmi_alert,
+            InventoryFunctionTypes.IGNORE: ignore_dmi_alert
+        },
+        Indicator.ADX: {
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_adx_alert_type,
+            InventoryFunctionTypes.LOAD: load_dmi_adx,
+            InventoryFunctionTypes.DID_ALERT: did_adx_alert,
+            InventoryFunctionTypes.IGNORE: ignore_adx_alert
+        },
+        Indicator.MACD: {
+            InventoryFunctionTypes.LOAD: load_macd,
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_macd_alert_type,
+            InventoryFunctionTypes.DID_ALERT: did_macd_alert,
+            InventoryFunctionTypes.IGNORE: ignore_macd_alert
+        },
+        Indicator.GOLDEN_CROSS: {
+            InventoryFunctionTypes.LOAD: load_golden_cross,
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_golden_cross_alert_type,
+            InventoryFunctionTypes.DID_ALERT: did_golden_cross_alert,
+            InventoryFunctionTypes.IGNORE: ignore_golden_cross_alert
+        },
+        Indicator.DEATH_CROSS: {
+            InventoryFunctionTypes.LOAD: load_death_cross,
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_death_cross_alert_type,
+            InventoryFunctionTypes.DID_ALERT: did_death_cross_alert,
+            InventoryFunctionTypes.IGNORE: ignore_death_cross_alert
+        }
+
+    }
+
+
+def ignore_golden_cross_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
+def ignore_death_cross_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
+def ignore_sma_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
+
+def ignore_macd_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
+
+def ignore_rsi_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
+    # todo code this up
+    # if ticker_results[ticker]['rsi']:
+    #     ticker_results[ticker]['directions'].append(
+    #         determine_rsi_alert_type(rsi_data, ticker, ticker_history, module_config))
+    #     # basically if any bullish alerst and overbought, ignore
+    #     if ((ticker_results[ticker]['macd'] and determine_macd_alert_type(macd_data, ticker, ticker_history,
+    #                                                                       module_config) == AlertType.MACD_MACD_CROSS_SIGNAL) or
+    #         (ticker_results[ticker]['sma'] and determine_sma_alert_type(sma, ticker, ticker_history,
+    #                                                                     module_config) == AlertType.SMA_CONFIRMATION_UPWARD) or
+    #         (ticker_results[ticker]['dmi'] and determine_dmi_alert_type(dmi_adx_data, ticker, ticker_history,
+    #                                                                     module_config) == AlertType.DMIPLUS_CROSSOVER_DMINEG)) and determine_rsi_alert_type(
+    #         rsi_data, ticker, ticker_history, module_config) == AlertType.RSI_OVERBOUGHT:
+    #         ticker_results[ticker]['rsi'] = False
+    #         del ticker_results[ticker]['directions'][-1]
+    #     elif ((ticker_results[ticker]['macd'] and determine_macd_alert_type(macd_data, ticker, ticker_history,
+    #                                                                         module_config) == AlertType.MACD_SIGNAL_CROSS_MACD) or
+    #           (ticker_results[ticker]['sma'] and determine_sma_alert_type(sma, ticker, ticker_history,
+    #                                                                       module_config) == AlertType.SMA_CONFIRMATION_DOWNWARD) or
+    #           (ticker_results[ticker]['dmi'] and determine_dmi_alert_type(dmi_adx_data, ticker, ticker_history,
+    #                                                                       module_config) == AlertType.DMINEG_CROSSOVER_DMIPLUS)) and determine_rsi_alert_type(
+    #         rsi_data, ticker, ticker_history, module_config) == AlertType.RSI_OVERSOLD:
+    #         ticker_results[ticker]['rsi'] = False
+    #         del ticker_results[ticker]['directions'][-1]
+def ignore_adx_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
+def ignore_dmi_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
+# def ignore_macd(ticker,ticker_history, module_config):
+# def ignore_sma(ticker,ticker_history, module_config):
 def load_macd(ticker,ticker_history, module_config):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     return {'macd':df['macd'],'signal':df['macds'], 'histogram': df['macdh']}
