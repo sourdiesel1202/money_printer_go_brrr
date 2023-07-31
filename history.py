@@ -26,18 +26,37 @@ class TickerHistory:
         self.timestamp =timestamp
         self.dt = timestamp_to_datetime(timestamp)
 
-def write_ticker_history_db_entry(connection, ticker, th, module_config):
-
-    # history_sql = f"REPLACE INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES ('','',)"
-    if len(execute_query(connection, f"select * from history_tickerhistory where timestamp={th.timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=False)) == 1:
-
-        history_sql = f"Insert INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES ((select id from tickers_ticker where symbol='{ticker}'), {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')"
-        execute_update(connection,history_sql,verbose=False, auto_commit=True)
+# def write_ticker_history_db_entry(connection, ticker, th, module_config):
+#
+#     # history_sql = f"REPLACE INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES ('','',)"
+#     if len(execute_query(connection, f"select * from history_tickerhistory where timestamp={th.timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=False)) == 1:
+#
+#         history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES ((select id from tickers_ticker where symbol='{ticker}'), {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')"
+#         execute_update(connection,history_sql,verbose=False, auto_commit=False)
 
 def write_ticker_history_db_entries(connection, ticker, ticker_history, module_config):
+    values_entries =[]
     for th in ticker_history:
-        write_ticker_history_db_entry(connection,ticker, th, module_config)
+        values_entries.append(f"((select id from tickers_ticker where symbol='{ticker}'), {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
+        # write_ticker_history_db_entry(connection,ticker, th, module_config)
+    #ok so dumb but before we run this let's do a select
+    if len(execute_query(connection, f"select * from history_tickerhistory where timestamp={th.timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=False)) == 1:
 
+        history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
+        execute_update(connection,history_sql,verbose=False, auto_commit=False)
+
+    # execute_query(connection, f"select count(timestamp) from history_tickerhistory  where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'")
+    # try:
+    #     history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
+    #     execute_update(connection,history_sql,verbose=True, auto_commit=True)
+    # except:
+    #     try:
+    #         history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
+    #         execute_update(connection, history_sql, verbose=True, auto_commit=True)
+    #     except Exception as e:
+    #         print(f"Could not process ticker history for {ticker}")
+    #         raise e
+    connection.commit()
 def convert_ticker_history_to_csv(ticker, ticker_history):
     rows = [['o','c','h','l','v','t']]
     for history in ticker_history:

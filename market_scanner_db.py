@@ -138,9 +138,10 @@ def load_ticker_histories(_tickers):
         successes = []
         failures = [['symbol']]
         for ticker in _tickers:
+            print(f"{os.getpid()}: Loading {_tickers.index(ticker)+1}/{len(_tickers)} ticker datas")
             try:
                 # if not module_config['test_mode']:
-                _ = load_ticker_history_raw(ticker, client,module_config['timespan_multiplier'], module_config['timespan'],timestamp_to_datetime(load_ticker_last_updated(ticker, connection, module_config)).strftime("%Y-%m-%d"), today, limit=50000, module_config=_module_config, connection=connection)
+                _ = load_ticker_history_raw(ticker, client,module_config['timespan_multiplier'], module_config['timespan'],get_today(module_config, minus_days=4), today, limit=50000, module_config=_module_config, connection=connection)
                 # else:
                     # _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), 11, limit=50000, module_config=_module_config)
                 successes.append(ticker)
@@ -151,21 +152,21 @@ def load_ticker_histories(_tickers):
     except:
         traceback.print_exc()
     # return  successes
+    connection.close()
 
-
-def generate_report(_tickers, module_config):
+def generate_report(ticker_list, module_config):
     # _tickers = load_ticker_histories(_tickers)
-    print(f"Loading history data for {len(_tickers)} tickers")
+    print(f"Loading history data for {len(ticker_list)} tickers")
     if module_config['run_concurrently']:
-        process_list_concurrently(_tickers, load_ticker_histories,int(len(_tickers)/module_config['num_processes'])+1)
+        process_list_concurrently(ticker_list, load_ticker_histories,int(len(ticker_list)/module_config['num_processes'])+1)
     else:
-        load_ticker_histories(_tickers)
+        load_ticker_histories(ticker_list)
     # _tickers = [x.split(f"{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/") if "O:" not in x]
     if module_config['run_concurrently']:
-        task_loads = [_tickers[i:i + int(len(_tickers)/module_config['num_processes'])+1] for i in range(0, len(_tickers), int(len(_tickers)/module_config['num_processes'])+1)]
+        task_loads = [ticker_list[i:i + int(len(ticker_list)/module_config['num_processes'])+1] for i in range(0, len(ticker_list), int(len(ticker_list)/module_config['num_processes'])+1)]
         # for k,v in dispensaries.items():
         processes = {}
-        print(f"Processing {len(_tickers)} in {len(task_loads)} load(s)")
+        print(f"Processing {len(ticker_list)} in {len(task_loads)} load(s)")
         for i in range(0, len(task_loads)):
             print(f"Blowing {i + 1}/{len(task_loads)} Loads")
             load = task_loads[i]
@@ -184,7 +185,7 @@ def generate_report(_tickers, module_config):
         print(f"All loads have been blown")
         # combined = combine_csvs([f"{module_config['output_dir']}{x.pid}.csv" for x in processes.values()])
     else:
-        process_tickers(_tickers)
+        process_tickers(ticker_list)
         # combined = read_csv(f"{module_config['output_dir']}{os.getpid()}.csv")
     # header = combined[0]
     # del combined[0]
@@ -211,17 +212,17 @@ def find_tickers():
             if module_config['test_mode']:
                 if module_config['test_use_test_population']:
                     # tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
-                    tickers =  [x[0] for x in  execute_query(connection, "select t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:module_config['test_population_size']]]
+                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:module_config['test_population_size']]]
                 else:
-                    tickers =  [x[0] for x in  execute_query(connection, "select t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
-                _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+                # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
                 # tickers
             else:
                 if module_config['test_use_input_tickers']:
                     _tickers = module_config['tickers']
                 else:
-                    tickers =  [x[0] for x in  execute_query(connection, "select t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
-                    _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+                    # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
         else:
             _tickers = module_config['tickers']
         # client = RESTClient(api_key=module_config['api_key'])
