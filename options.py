@@ -4,7 +4,7 @@ import traceback
 
 import requests
 import mibian
-from functions import calculate_percentage, get_today, load_module_config
+from functions import calculate_percentage, get_today, load_module_config, execute_update
 from enums import PositionType, PriceGoalChangeType
 from polygon import OptionsClient
 import json
@@ -299,6 +299,7 @@ def analyze_option_data(position_type,ticker, ticker_history, module_config):
                 _tmp_iv = mibian.BS([ticker_history[-1].close, float(option_symbol.strike_price), 0, dte], putPrice=contract_history[-1].close).impliedVolatility
             # _tmp_iv = mibian.BS([asset_price, strike_price, 0, dte], callPrice=ask).impliedVolatility
             greeks = mibian.BS([ticker_history[-1].close, float(option_symbol.strike_price), 0, dte], volatility=_tmp_iv)
+            # greeks.
             results.append({
                 "total_volume":sum([x.volume for x in contract_history]),
                 "last_traded": timestamp_to_datetime(contract_history[-1].timestamp),
@@ -327,14 +328,20 @@ def load_tickers_option_data(tickers, module_config={}):
         #just iterate through and load the data
         ticker_history = load_ticker_history_cached(ticker, module_config)
         load_ticker_option_data(ticker, ticker_history, module_config)
+def write_discovered_contracts(contracts, ticker, ticker_history, module_config, connection = None):
 
-def load_ticker_option_data(ticker, ticker_history, module_config):
+    for contract in contracts:
+        option_symbol = OptionSymbol(contract)
+        sql = f"insert ignore into tickers_contract (symbol, name, type, expry, description, strike_price, ticker_id) values ('{contract}', '{option_symbol.expiry} {option_symbol.strike_price} {PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION} ', '{PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION}','{option_symbol.expiry}', '{option_symbol.strike_price} {option_symbol.expiry} {PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION}S on {ticker}', {float(option_symbol.strike_price)}, (select id from tickers_ticker where symbol='{ticker}'))"
+        execute_update(connection, sql, verbose=True,auto_commit=True)
 
-    # ok so the idea here is start at 31 days DTE and look forward
+def load_ticker_option_data(ticker, ticker_history, module_config, connection = None ):
+
+    # ok so the idea here is start at 1 day DTE and look forward
     now = datetime.datetime.now()
     expires = {}
-    for i in range(30, 60):  # look 90 days out for contracts
-        tin_per = float(float(40/100) * ticker_history[-1].close)
+    for i in range(1, 48):  # look 90 days out for contracts
+        tin_per = float(float(module_config['contract_ticker_percentage']/100) * ticker_history[-1].close) #basically we are looking for contracts within 20% of the
         strike_price_query = f"strike_price.gte={ticker_history[-1].close - tin_per}&strike_price.lte={ticker_history[-1].close + tin_per}"
         # urls =[f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&contract_type=put&{strike_price_query}",f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&{strike_price_query}&limit=500"]
         urls =[f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&{strike_price_query}&limit=500"]
@@ -350,7 +357,8 @@ def load_ticker_option_data(ticker, ticker_history, module_config):
 
 
     # ok so once we have our contracts and dates, we can load the data for the contracts/dates
-
+    for contracts in expires.values():
+        write_discovered_contracts(contracts, ticker, ticker_history,module_config, connection)
     # for ticker_a in module_config['tickers']:
     #     contract_tickers = mcv_load_options_contracts(ticker_a, module_config)
     options_client = polygon.OptionsClient(api_key=module_config['api_key'])
@@ -360,10 +368,10 @@ def load_ticker_option_data(ticker, ticker_history, module_config):
         print(f"Found {len(expires[_date])} contracts at date {_date}")
         for option_contract in expires[_date]:
             try:
-                contract_dat = load_options_history_raw(option_contract, options_client, module_config['timespan_multiplier'], module_config['timespan'],get_today(module_config, minus_days=14), get_today(module_config), 50000,module_config)
+                contract_dat = load_options_history_raw(option_contract,ticker_history, options_client, module_config['timespan_multiplier'], module_config['timespan'],get_today(module_config, minus_days=module_config['contract_history_window']), get_today(module_config), 50000,module_config, connection=connection)
                 if len(contract_dat)> 0:
                     _contract_data.append(option_contract)
-                    plot_ticker_with_indicators(option_contract, contract_dat, build_indicator_dict(ticker, contract_dat, module_config),module_config)
+                    # plot_ticker_with_indicators(option_contract, contract_dat, build_indicator_dict(ticker, contract_dat, module_config),module_config)
 
             except:
                 traceback.print_exc()
