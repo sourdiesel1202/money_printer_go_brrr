@@ -335,6 +335,48 @@ def write_discovered_contracts(contracts, ticker, ticker_history, module_config,
         sql = f"insert ignore into tickers_contract (symbol, name, type, expry, description, strike_price, ticker_id) values ('{contract}', '{option_symbol.expiry} {option_symbol.strike_price} {PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION} ', '{PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION}','{option_symbol.expiry}', '{option_symbol.strike_price} {option_symbol.expiry} {PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION}S on {ticker}', {float(option_symbol.strike_price)}, (select id from tickers_ticker where symbol='{ticker}'))"
         execute_update(connection, sql, verbose=True,auto_commit=True)
 
+
+def load_ticker_contract_history(contracts, ticker, ticker_history,module_config, connection):
+    options_client = polygon.OptionsClient(api_key=module_config['api_key'])
+    for option_contract in contracts:
+        try:
+            contract_dat = load_options_history_raw(option_contract, ticker_history, options_client,
+                                                    module_config['timespan_multiplier'], module_config['timespan'],
+                                                    get_today(module_config,
+                                                              minus_days=module_config['contract_history_window']),
+                                                    get_today(module_config), 50000, module_config,
+                                                    connection=connection)
+
+
+        except:
+            traceback.print_exc()
+        pass
+    # return contract_dat
+
+def load_ticker_option_contracts(ticker, ticker_history, module_config, connection = None ):
+
+    # ok so the idea here is start at 1 day DTE and look forward
+    now = datetime.datetime.now()
+    expires = {}
+    for i in range(0, module_config['contract_days_out']):  # look 90 days out for contracts
+        tin_per = float(float(module_config['contract_ticker_percentage']/100) * ticker_history[-1].close) #basically we are looking for contracts within 20% of the
+        strike_price_query = f"strike_price.gte={ticker_history[-1].close - tin_per}&strike_price.lte={ticker_history[-1].close + tin_per}"
+        # urls =[f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&contract_type=put&{strike_price_query}",f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&{strike_price_query}&limit=500"]
+        urls =[f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&{strike_price_query}&limit={module_config['contract_pullback_limit']}&contract_type=call", f"{module_config['api_endpoint']}/v3/reference/options/contracts?apiKey={module_config['api_key']}&underlying_ticker={ticker}&expiration_date={(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')}&{strike_price_query}&limit={module_config['contract_pullback_limit']}&contract_type=put"]
+        for url in urls:
+            r = requests.get(url)
+            raw_data = json.loads(r.text)
+            if len(raw_data['results']) > 0:
+                if (now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')  not in expires:
+                    expires[(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')] = []#=[x['ticker'] for x in raw_data['results']]
+                for x in raw_data['results']:
+                    expires[(now + datetime.timedelta(days=i)).strftime('%Y-%m-%d')].append(x['ticker'])
+                    # print(f"{x['ticker']}:{x['contract_type']}:{x['strike_price']}")
+
+
+    # ok so once we have our contracts and dates, we can load the data for the contracts/dates
+    for contracts in expires.values():
+        write_discovered_contracts(contracts, ticker, ticker_history,module_config, connection)
 def load_ticker_option_data(ticker, ticker_history, module_config, connection = None ):
 
     # ok so the idea here is start at 1 day DTE and look forward
@@ -353,7 +395,7 @@ def load_ticker_option_data(ticker, ticker_history, module_config, connection = 
                     expires[(now+datetime.timedelta(days=i)).strftime('%Y-%m-%d')] = []#=[x['ticker'] for x in raw_data['results']]
                 for x in raw_data['results']:
                     expires[(now + datetime.timedelta(days=i)).strftime('%Y-%m-%d')].append(x['ticker'])
-                    print(f"{x['ticker']}:{x['contract_type']}:{x['strike_price']}")
+                    # print(f"{x['ticker']}:{x['contract_type']}:{x['strike_price']}")
 
 
     # ok so once we have our contracts and dates, we can load the data for the contracts/dates

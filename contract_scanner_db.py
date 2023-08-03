@@ -21,7 +21,7 @@ from notification import send_email, generate_mpd_html_table
 # from polygon import RESTClient,
 import polygon, datetime
 import time
-from options import analyze_option_data, load_ticker_option_data
+from options import analyze_option_data, load_ticker_option_data, load_ticker_option_contracts as _load_ticker_option_contracts, load_ticker_contract_history as _load_ticker_contract_history
 from zoneinfo import ZoneInfo
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv, \
     clear_ticker_history_cache, load_ticker_history_cached
@@ -82,75 +82,96 @@ def process_tickers(tickers):
 
     # process_results(ticker_results)
 
-def load_contract_histories(_tickers):
-    client = RESTClient(api_key=module_config['api_key'])
-    _module_config  =load_module_config(__file__.split("/")[-1].split(".py")[0])
-    connection= obtain_db_connection(_module_config)
-    try:
-        # successes = []
-        # failures = [['symbol']]
-        for ticker in _tickers:
-            #ok so first we need to load the ticker history
-            print(f"{os.getpid()}: Loading contract data for {_tickers.index(ticker)+1}/{len(_tickers)} ")
-            th = load_ticker_history_cached(ticker, module_config, connection=connection)
-            try:
-                #ok so what we need to do here is load our contract data now
-                pass
+# def load_contract_histories(_tickers):
+#     client = RESTClient(api_key=module_config['api_key'])
+#     _module_config  =load_module_config(__file__.split("/")[-1].split(".py")[0])
+#     connection= obtain_db_connection(_module_config)
+#     try:
+#         # successes = []
+#         # failures = [['symbol']]
+#         for ticker in _tickers:
+#             #ok so first we need to load the ticker history
+#             print(f"{os.getpid()}: Loading contract data for {_tickers.index(ticker)+1}/{len(_tickers)} ")
+#             th = load_ticker_history_cached(ticker, module_config, connection=connection)
+#             try:
+#                 #ok so what we need to do here is load our contract data now
+#                 pass
+#
+#                 _ = load_ticker_option_data(ticker, th, module_config, connection=connection)
+#             except:
+#                 pass
+#                 traceback.print_exc()
+#                 print(f"could not load ticker history for {ticker}")
+#                 # failures.append([ticker])
+#         # write_csv(f"{module_config['output_dir']}mpb_load_failures.csv",failures)
+#     except:
+#         traceback.print_exc()
+#     # return  successes
+#     connection.close()
+def load_ticker_option_contracts(ticker_list):
+    _module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
+    connection = obtain_db_connection(_module_config)
 
-                _ = load_ticker_option_data(ticker, th, module_config, connection=connection)
-            except:
-                pass
-                traceback.print_exc()
-                print(f"could not load ticker history for {ticker}")
-                # failures.append([ticker])
-        # write_csv(f"{module_config['output_dir']}mpb_load_failures.csv",failures)
-    except:
-        traceback.print_exc()
-    # return  successes
+    # def load_ticker_option_contracts(ticker, ticker_history, module_config, connection=None):
+    for ticker in ticker_list:
+
+        try:
+                _load_ticker_option_contracts(ticker, load_ticker_history_cached(ticker, module_config, connection=connection), module_config, connection=connection)
+                print(f"Loaded contracts for {ticker_list.index(ticker)}/{len(ticker_list)-1}")
+        except:
+            traceback.print_exc()
+            print(f"Could not load contracts for {ticker}")
     connection.close()
 
-def generate_report(ticker_list, module_config):
+def load_ticker_contract_history(contract_data):
+    _module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
+    _module_config['num_processes'] = 12
+    connection = obtain_db_connection(_module_config)
+
+    contract_dict = {}
+    for data in contract_data:
+        if data[-1] not in contract_dict:
+            contract_dict[data[-1]]=[data[1]]
+        else:
+            contract_dict[data[-1]].append(data[1])
+
+    # def load_ticker_contract_history(contracts, ticker, ticker_history, module_config, connection):
+    for ticker, contracts in contract_dict.items():
+        # ticker = data[-1]
+        try:
+                _load_ticker_contract_history(contracts,ticker, load_ticker_history_cached(ticker, module_config, connection=connection), module_config, connection=connection)
+                print(f"Loaded contract history for {[x for x in contract_dict.keys()].index(ticker)}/{len([x for x in contract_dict.keys()])-1} tickers, ({len(contracts)} contracts)")
+        except:
+            traceback.print_exc()
+            print(f"Could not load contract history for {ticker}")
+    connection.close()
+def load_contract_histories(contract_list, module_config):
+    print(f"Loading history data for {len(contract_list)} contracts")
+    if module_config['run_concurrently']:
+
+        # process_list_concurrently(ticker_list, load_contract_histories,int(len(ticker_list)/module_config['num_processes'])+1)
+        # process_list_concurrently(contract_list, load_ticker_option_contracts,int(len(contract_list) / module_config['num_processes']) + 1)
+        # contract_list = execute_query()
+        process_list_concurrently(contract_list, load_ticker_contract_history,int(len(contract_list) / 12) + 1)
+        # process_list_concurrently(ticker_list, load_contract_histories,int(len(ticker_list)/module_config['num_processes'])+1)
+    else:
+        load_ticker_option_contracts(contract_list)
+
+
+def load_contracts(ticker_list, module_config):
+
     # _tickers = load_contract_histories(_tickers)
     print(f"Loading contract data for {len(ticker_list)} tickers")
     if module_config['run_concurrently']:
-        process_list_concurrently(ticker_list, load_contract_histories,int(len(ticker_list)/module_config['num_processes'])+1)
+
+        # process_list_concurrently(ticker_list, load_contract_histories,int(len(ticker_list)/module_config['num_processes'])+1)
+        process_list_concurrently(ticker_list, load_ticker_option_contracts,int(len(ticker_list)/module_config['num_processes'])+1)
+        # contract_list = execute_query()
+        # process_list_concurrently(contract_list, load_ticker_contract_history,int(len(ticker_list)/module_config['num_processes'])+1)
+        # process_list_concurrently(ticker_list, load_contract_histories,int(len(ticker_list)/module_config['num_processes'])+1)
     else:
-        load_contract_histories(ticker_list)
-    # _tickers = [x.split(f"{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/") if "O:" not in x]
-    # if module_config['run_concurrently']:
-    #     task_loads = [ticker_list[i:i + int(len(ticker_list)/module_config['num_processes'])+1] for i in range(0, len(ticker_list), int(len(ticker_list)/module_config['num_processes'])+1)]
-    #     # for k,v in dispensaries.items():
-    #     processes = {}
-    #     print(f"Processing {len(ticker_list)} in {len(task_loads)} load(s)")
-    #     for i in range(0, len(task_loads)):
-    #         print(f"Blowing {i + 1}/{len(task_loads)} Loads")
-    #         load = task_loads[i]
-    #         p = multiprocessing.Process(target=process_tickers, args=(load,))
-    #         p.start()
-    #
-    #         processes[str(p.pid)] = p
-    #     while any(processes[p].is_alive() for p in processes.keys()):
-    #         # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
-    #         process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
-    #         time_str = f"{int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds"
-    #         print(
-    #             f"Waiting on {len(processes.keys())} processes to finish in load {i + 1}/{len(task_loads)}\nElapsed Time: {time_str}")
-    #         time.sleep(10)
-    #
-    #     print(f"All loads have been blown")
-    #     # combined = combine_csvs([f"{module_config['output_dir']}{x.pid}.csv" for x in processes.values()])
-    # else:
-    #     process_tickers(ticker_list)
-    #     # combined = read_csv(f"{module_config['output_dir']}{os.getpid()}.csv")
-    # header = combined[0]
-    # del combined[0]
-    # sorted(combined, key=lambda x: int(x[-2]))
-    # itemgetter_int = chained(operator.itemgetter(*[header.index(x) for x in module_config['sort_fields']]), partial(map, float), tuple)
-    # combined.sort(key=itemgetter_int)
-    # combined.reverse()
-    # # results.reverse()
-    # combined.insert(0, header)
-    # return combined
+        load_ticker_option_contracts(ticker_list)
+
 def find_contracts():
     start_time = time.time()
     connection = obtain_db_connection(module_config)
@@ -173,98 +194,27 @@ def find_contracts():
                     # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
         else:
             _tickers = module_config['tickers']
-        generate_report(_tickers, module_config)
+        load_contracts(_tickers, module_config)
+        connection.commit()
+        print(f"#### Loaded Contracts for {len(_tickers)} Tickers ####")
+        time.sleep(30)
+        load_contract_histories(execute_query(connection, "select tc.id, tc.symbol contract, tc.name, tc.type, tc.expry, tc.description, tc.strike_price, t.symbol ticker from tickers_contract tc, tickers_ticker t where t.id =tc.ticker_id and STR_TO_DATE(expry, '%Y-%m-%d') >= current_date")[1:], module_config)
+
+        print(f"#### Completed load of contract histories ####")
+        # print(f"#### Loaded Contract history for {len(execute_query(connection, 'select tc.id, tc.symbol contract, tc.name, tc.type, tc.expry, tc.description, tc.strike_price, t.symbol ticker from tickers_contract tc, tickers_ticker t where t.id =tc.ticker_id and STR_TO_DATE(expry, \'%Y-%m-%d\') >= current_date')[1:])} Tickers ####")
+        time.sleep(30)
         print(f"API KEY: {module_config['api_key']}")
     except:
         traceback.print_exc()
     connection.close()
 
-    # return results
-    #ok so once we are here, let's go ahead and find the tickers that we need to backtest and run int
 
-
-# def load_option_data(results, module_config):
-#     combined = results['mpb']
-#     # if module_config['backtest']:
-#     print("##############\nLoading Market Scanner Option Data\n##############")
-#     # ticker =
-#     tickers = [combined[i][combined[0].index('symbol')].split("'>")[1].split("</")[0].strip() for i in range(1, len(combined))]
-#     process_list_concurrently(tickers,load_tickers_option_data, int(len(tickers)/module_config['num_processes'])+1 )
-#     print("##############\nLoaded Market Scanner Option Data\n##############")
-#     # combined[0].insert(combined[0].index('long_validation'), 'suggested_call')
-#     # combined[0].insert(combined[0].index('short_validation'), 'suggested_put')
-#     # combined[0].insert(combined[0].index('long_validation'), 'recommended_put')
-#     for i in range(1, len(combined)):
-#         # combined[i].insert(combined[0].index('short_validation'), 'suggested_put')
-#         ticker = combined[i][combined[0].index('symbol')].split("'>")[1].split("</")[0].strip()
-#         short_options = analyze_option_data(PositionType.SHORT,ticker,load_ticker_history_cached(ticker,module_config), module_config)
-#         if len(short_options) == 0:
-#             short_option = {'ticker':''}
-#         else:
-#             short_option = short_options[0]
-#
-#         long_options = analyze_option_data(PositionType.LONG, ticker,
-#                                             load_ticker_history_cached(ticker, module_config), module_config)
-#         if len(long_options) == 0:
-#             long_option = {'ticker': ticker}
-#         else:
-#             long_option = long_options[0]
-#         put_link = urllib.parse.quote(f"{module_config['timespan_multiplier']}{module_config['timespan']}{short_option['ticker']}.html",safe='')
-#         call_link = urllib.parse.quote(f"{module_config['timespan_multiplier']}{module_config['timespan']}{long_option['ticker']}.html",safe='')
-#         # long_option = analyze_option_data(PositionType.LONG,ticker,load_ticker_history_cached(ticker,module_config), module_config)[0]
-#         short_option_str = f"<a href='{put_link}'>{short_option['ticker']}</a>"
-#         long_option_str = f"<a href='{call_link}'>{long_option['ticker']}</a>"
-#         combined[i][combined[0].index('suggested_put')]= short_option_str
-#         combined[i][combined[0].index('suggested_call')]= long_option_str
-#         # combined[i].insert(combined[0].index('long_validation'), long_option_str)
-#
-#     write_csv("mpb.csv", combined)
-#     #once we get here, we need to update the report to include our preferred contracts for long and short
-
-    long_contract = []
-    # for i in range(1, len(combined)):
-    #     if int(combined[i][combined[0].index('pick_level')]) >= module_config['report_alert_min']:
-    #         pass
-
-
-# def run_backtests(results, module_config):
-#     combined = results['mpb']
-#     if module_config['backtest']:
-#         print("##############\nRunning Market Scanner Backtest\n##############")
-#
-#         for i in range(1, len(combined)):
-#             if int(combined[i][combined[0].index('pick_level')]) == module_config['backtest_alert_count']:
-#                 try:
-#                     combined[i][combined[0].index('backtested')] = True
-#                     # if module_config['logging']:
-#                     ticker = combined[i][combined[0].index('symbol')].split("'>")[1].split("</")[0].strip()
-#                     print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('alerts_triggered')].split(','))}, running backtest for {module_config['backtest_days']} days")
-#                     backtest_ticker_concurrently(combined[i][combined[0].index('alerts_triggered')].split(','), ticker,
-#                                                  load_ticker_history_cached(ticker, module_config), module_config)
-#                     backtest_results = analyze_backtest_results(load_backtest_results(ticker, module_config))
-#                     for _backtest_key in analyzed_backtest_keys:
-#                     # for ii in range(combined[0].index('backtested') + 1, len(combined[0])):
-#                             # print(f"Report_headers {_report_headers[i]}")
-#                         combined[i][combined[0].index(_backtest_key)] = backtest_results[_backtest_key]
-#                 except:
-#                     combined[i][combined[0].index('backtested')] = False
-#                     traceback.print_exc()
-#                     print(f"Could not backtest ticker {combined[i][0]}")
-#         results['mpb_backtested'] = combined
-#         # try:
-        #     # write_csv("mpb_backtested.csv", combined)
-        # except:
-        #     print(f"Cannot write file")
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     # freeze_support()
     start_time = time.time()
-    # client = RESTClient(api_key=module_config['api_key'])
-    # history_entries = load_ticker_history_csv("GE", client, 1, "hour", today, today, 500)
-    # history_entries = load_ticker_history_raw("GE",  client, 1, "hour", today, today, 500)
-    # did_dmi_alert(load_dmi_adx("GE", client, history_entries, module_config), history_entries, "GE", module_config)
     ##find data
     connection = obtain_db_connection(module_config)
     if module_config['trading_hours_only']:
