@@ -212,3 +212,14 @@ def process_ticker_history(connection, ticker,ticker_history, module_config):
     execute_update(connection, f"insert into lines_similarline (ticker_id, ticker_history_id) values ((select id from tickers_ticker where symbol='{ticker}'), (select id from history_tickerhistory where timestamp={load_ticker_last_updated(ticker, connection, module_config)} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))", auto_commit=False)
     connection.commit()
     # process_ticker_validation(connection, ticker, ticker_history, module_config)
+
+def load_profitable_line_matrix(connection,  module_config):
+    return []
+def write_profitable_lines(connection, ticker, ticker_history, profitable_lines, module_config):
+    #ok so the idea where is that we write the line first and then
+    for profit_percentage, indexes in profitable_lines.items():
+        execute_update(connection, sql=f"insert ignore into lines_profitableline (forward_range, backward_range, profit_percentage) values ({module_config['line_profit_forward_range']},{module_config['line_profit_backward_range']},{profit_percentage})", auto_commit=True, verbose=True)
+        for index in indexes:
+            execute_update(connection,f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where forward_range={module_config['line_profit_forward_range']} and backward_range={module_config['line_profit_backward_range']} and profit_percentage={profit_percentage}), (select id from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and timestamp={ticker_history[index].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))",auto_commit=False, verbose=True)
+        connection.commit()
+    pass

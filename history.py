@@ -80,10 +80,14 @@ def write_ticker_history_db_entries(connection, ticker, ticker_history, module_c
         values_entries.append(f"((select id from tickers_ticker where symbol='{ticker}'), {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
         # write_ticker_history_db_entry(connection,ticker, th, module_config)
     #ok so dumb but before we run this let's do a select
-    if len(execute_query(connection, f"select * from history_tickerhistory where timestamp={th.timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=False)) == 1:
+    if len(execute_query(connection, f"select * from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=False)) == 1:
+
+        # for values in values_entries:
 
         history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
+            # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
         execute_update(connection,history_sql,verbose=False, auto_commit=False)
+    connection.commit()
 
     # execute_query(connection, f"select count(timestamp) from history_tickerhistory  where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'")
     # try:
