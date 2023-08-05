@@ -21,6 +21,7 @@ class TickerHistory:
     volume = 0
     timestamp = 0
     dt = None
+    # db_id = None
     def __init__(self, open, close, high, low, volume, timestamp):
         self.open = open
         self.close = close

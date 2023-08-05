@@ -1,6 +1,9 @@
+import datetime
+import time
 import traceback
 
 from enums import AlertType, PositionType, strategy_type_dict, InventoryFunctionTypes
+from history import TickerHistory
 from validation import validate_ticker
 from functions import execute_query, execute_update, obtain_db_connection
 from indicators import load_macd, load_sma, load_dmi_adx, load_rsi, did_macd_alert, did_rsi_alert, did_sma_alert, \
@@ -11,8 +14,13 @@ from indicators import load_support_resistance, is_trading_in_sr_band, determine
 # strategy_type_dict
 
 
+
+def load_ticker_history_by_id(connection, ticker_history_id, ticker, module_config):
+    return TickerHistory(*[float(x) if '.' in x else int(x) for x in execute_query(connection, f"select open, close, high, low, volume, timestamp from history_tickerhistory where id='{ticker_history_id}' and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp asc")[1]])
 def load_mpb_report(connection, module_config):
     return execute_query(connection, f"select distinct  th.timestamp, t.symbol, th.close,th.volume, group_concat(distinct tv.strategy_type separator  ',') strategies_validated, count(distinct ta.alert_type) pick_level,group_concat(distinct ta.alert_type separator  ',') alerts_triggered,group_concat(distinct tlt.symbol separator  ',') similar_ticker_lines, group_concat(distinct tbv.strategy_type separator  ',') backtested_positions  from history_tickerhistory th , tickers_ticker t, validation_tickervalidation tv, alerts_tickeralert ta, lines_similarline tl, tickers_ticker tlt, backtests_backtest tb, validation_tickervalidation tbv where tbv.id=tb.validation_id and tb.validation_id=tv.id and tl.ticker_history_id =th.id and tl.ticker_id=tlt.id and  ta.ticker_history_id=th.id and tv.ticker_history_id=th.id and t.id=th.ticker_id and th.timestamp= (select max(timestamp) from history_tickerhistory where timespan_multiplier='{module_config['timespan_multiplier']}' and timespan='{module_config['timespan']}') and th.timespan_multiplier='{module_config['timespan_multiplier']}' and th.timespan='{module_config['timespan']}' group by th.id, th.timestamp, t.symbol, th.close,th.volume")
+def load_ticker_symbol_by_id(connection,ticker_id, module_config):
+    return execute_query(connection, f"select symbol from tickers_ticker where id='{ticker_id}'")[1][0]
 
 def load_ticker_last_updated(ticker, connection, module_config):
     return int(execute_query(connection, f"select coalesce(max(timestamp), round(1000 * unix_timestamp(date_sub(now(), interval 365 day)))) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'")[1][0])
@@ -21,7 +29,7 @@ def load_timespan_last_updated(ticker, connection, module_config):
 
 
 def load_nyse_tickers(connection, module_config):
-    return [x[0] for x in execute_query(connection,"select t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+    return [x[0] for x in execute_query(connection,"select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
 
 
 # def write_ticker_alert(connection,  alert_type, ticker, ticker_history,module_config):
@@ -213,13 +221,3 @@ def process_ticker_history(connection, ticker,ticker_history, module_config):
     connection.commit()
     # process_ticker_validation(connection, ticker, ticker_history, module_config)
 
-def load_profitable_line_matrix(connection,  module_config):
-    return []
-def write_profitable_lines(connection, ticker, ticker_history, profitable_lines, module_config):
-    #ok so the idea where is that we write the line first and then
-    for profit_percentage, indexes in profitable_lines.items():
-        execute_update(connection, sql=f"insert ignore into lines_profitableline (forward_range, backward_range, profit_percentage) values ({module_config['line_profit_forward_range']},{module_config['line_profit_backward_range']},{profit_percentage})", auto_commit=True, verbose=True)
-        for index in indexes:
-            execute_update(connection,f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where forward_range={module_config['line_profit_forward_range']} and backward_range={module_config['line_profit_backward_range']} and profit_percentage={profit_percentage}), (select id from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and timestamp={ticker_history[index].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))",auto_commit=False, verbose=True)
-        connection.commit()
-    pass
