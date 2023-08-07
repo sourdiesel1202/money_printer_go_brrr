@@ -63,7 +63,7 @@ for i in _input:
 
         new_input.append(combine_character.join(tmp))
     else:
-        new_input.append([x.strip() for x in _line if len(x) > 1][use_column])
+        new_input.append([x.strip() for x in _line ][use_column])
 
 
 _input = new_input

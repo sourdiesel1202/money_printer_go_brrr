@@ -11,7 +11,8 @@ from history import load_ticker_history_raw, load_ticker_history_db
 # from validation import validate_ticker
 from functions import load_module_config, get_today, obtain_db_connection, process_list_concurrently
 
-from profitable_lines import  compare_profitable_ticker_lines_to_market
+from profitable_lines import compare_profitable_ticker_lines_to_market, load_profitable_line_matrix
+
 
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
 
@@ -46,7 +47,8 @@ if __name__ == '__main__':
 
 
     # def process_list_concurrently(data, process_function, batch_size):
-    process_list_concurrently(tickers, compare_tickers_lines_to_market, int(len(tickers)/12)+1)
+    # process_list_concurrently(tickers, compare_tickers_lines_to_market, int(len(tickers)/12)+1)
+    load_profitable_line_matrix(connection, module_config)
     connection.close()
 
     print(f"\nCompleted Profitable Line test of {len(tickers)} tickers in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")

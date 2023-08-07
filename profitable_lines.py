@@ -17,15 +17,19 @@ from shape import compare_tickers_at_index
 def load_profitable_line_matrix(connection,  module_config):
     #load the profitable line matrix
     execute_update(connection, f"SET SESSION group_concat_max_len = 100000000",auto_commit=True)
-    rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name,count(distinct plh.tickerhistory_id) matches ,group_concat(concat(th.ticker_id,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl, (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where  plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
+    # rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name,count(distinct plh.tickerhistory_id) matches ,group_concat(concat(th.ticker_id,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl, (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where  plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
+    rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name,count(distinct plh.tickerhistory_id) matches ,group_concat(concat(th.ticker_id,':',t.symbol,':',th.timestamp,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl,tickers_ticker t , (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where t.id=th.ticker_id and plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
+
     results = {}
     for i in range(1, len(rows)):
-        if int(rows[i][rows[0].index('line_type_name')])  < 100: #basically skip any that we've found that aren't really relevant yet
-            continue
+        # if int(rows[i][rows[0].index('matches')])  < 100: #basically skip any that we've found that aren't really relevant yet
+        #     continue
         try:
             results[rows[i][rows[0].index('line_type_name')]] = {
                 "profit": int(float(rows[i][rows[0].index('profit_percentage')])),
-                "matches" :[{x.split(":")[1]:x.split(":")[0]} for x in rows[i][rows[0].index('ticker_histories')].split(',')],
+                "matches" :[{x.split(":")[-1]:x.split(":")[0]} for x in rows[i][rows[0].index('ticker_histories')].split(',')],
+                'symbol': [x.split(":")[1] for x in rows[i][rows[0].index('ticker_histories')].split(',')][0],
+                'timestamp': [x.split(":")[2] for x in rows[i][rows[0].index('ticker_histories')].split(',')][0],
                 "forward_range": int(float(rows[i][rows[0].index('forward_range')])),
                 "backward_range": int(float(rows[i][rows[0].index('backward_range')]))
             }
@@ -97,7 +101,8 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
                 print(f"Skipping Historic Profit Line of {line_data['profit']}%, the trend is in the opposite direction of profit {profit}%")
                 continue
             try:
-                compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0], module_config)
+                # compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0], module_config)
+                compare_ticker = line_data['symbol']
             except:
                 traceback.print_exc()
                 print()
@@ -106,7 +111,8 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
 
                 loaded_histories[compare_ticker]=load_ticker_history_db(compare_ticker, module_config, connection=connection)
             #ok so now we need to load the ticker history entry at the matching id
-            history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],compare_ticker, module_config)
+            # history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],compare_ticker, module_config)
+            history_entry = [x for x in loaded_histories[compare_ticker] if x.timestamp == int(line_data['timestamp'])][0]
             compare_index = next((i for i, item in enumerate(loaded_histories[compare_ticker]) if item.timestamp == history_entry.timestamp), -1)
 
             try:

@@ -10,7 +10,7 @@ from functools import partial
 from enums import OrderType
 import datetime
 from zoneinfo import ZoneInfo
-from history import load_ticker_history_pd_frame, load_ticker_history_csv, load_ticker_history_db
+from history import load_ticker_history_pd_frame,  load_ticker_history_cached
 from stockstats import wrap
 from enums import *
 from shape import compare_tickers, compare_tickers_at_index
@@ -324,21 +324,25 @@ def did_profitable_lines_alert(indicator_data,ticker,ticker_history, module_conf
         #         f"Skipping Historic Profit Line of {line_data['profit']}%, the trend is in the opposite direction of profit {profit}%")
         #     continue
         try:
-            compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0],
-                                                      module_config)
+            # compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0],
+            #                                           module_config)
+            compare_ticker = line_data['symbol']
         except:
             traceback.print_exc()
             print()
             raise Exception
-        loaded_histories ={compare_ticker: load_ticker_history_db(compare_ticker, module_config,connection=connection)}
+        print(f"Comparing {ticker} to {line} on {compare_ticker} at {human_readable_datetime(timestamp_to_datetime(line_data['timestamp']))}")
+        loaded_histories ={compare_ticker: load_ticker_history_cached(compare_ticker, module_config)}
 
-        history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],
-                                                  compare_ticker, module_config)
+        # history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],
+        #                                           compare_ticker, module_config)
+        history_entry = [x for x in loaded_histories[compare_ticker] if x.timestamp == int(line_data['timestamp'])][0]
         compare_index = next((i for i, item in enumerate(loaded_histories[compare_ticker]) if item.timestamp == history_entry.timestamp),-1)
 
         try:
             if len(ticker_history) >= module_config['line_profit_backward_range'] and len(loaded_histories[compare_ticker]) >= module_config['line_profit_backward_range']:
                 match_likelihood = compare_tickers_at_index(compare_index, ticker, ticker_history,compare_ticker, loaded_histories[compare_ticker],module_config)
+
                 matches[match_likelihood] = line
                 print(f"We actually found  a match")
                 # profits[match_likelihood]= line_data['profit']
@@ -507,16 +511,17 @@ def determine_profitable_lines_alert_type(indicator_data,ticker,ticker_history, 
         #         f"Skipping Historic Profit Line of {line_data['profit']}%, the trend is in the opposite direction of profit {profit}%")
         #     continue
         try:
-            compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0],
-                                                      module_config)
+            # compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0],module_config)
+            compare_ticker = line_data['symbol']
         except:
             traceback.print_exc()
             print()
             raise Exception
-        loaded_histories ={compare_ticker: load_ticker_history_db(compare_ticker, module_config,connection=connection)}
+        loaded_histories ={compare_ticker: load_ticker_history_cached(compare_ticker, module_config)}
 
-        history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],
-                                                  compare_ticker, module_config)
+        # history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],
+        #                                           compare_ticker, module_config)
+        history_entry = [x for x in loaded_histories[compare_ticker] if x.timestamp == int(line_data['timestamp'])][0]
         compare_index = next((i for i, item in enumerate(loaded_histories[compare_ticker]) if item.timestamp == history_entry.timestamp),-1)
 
         try:
@@ -636,7 +641,7 @@ def has_matching_trend_with_ticker(ticker_a, ticker_history_a,ticker_b, ticker_h
 def load_profitable_lines(ticker,ticker_history, module_config,connection=None):
     return load_profitable_line_matrix(connection, module_config)
 def load_ticker_similar_trends(ticker, module_config,connection=None):
-    ticker_history = load_ticker_history_db(ticker, module_config)
+    ticker_history = load_ticker_history_cached(ticker, module_config)
     result = []
     # if module_config['logging']:
     print(f"{human_readable_datetime(datetime.datetime.now())}:${ticker}: Performing line comparison of ${ticker}")
@@ -644,7 +649,7 @@ def load_ticker_similar_trends(ticker, module_config,connection=None):
         try:
             if module_config['logging']:
                 print(f"{human_readable_datetime(datetime.datetime.now())}:${ticker}: Performing line comparison of ${ticker} <==> ${compare_ticker}")
-            similarity = compare_tickers(ticker, ticker_history, compare_ticker, load_ticker_history_db(compare_ticker, module_config), module_config)
+            similarity = compare_tickers(ticker, ticker_history, compare_ticker, load_ticker_history_cached(compare_ticker, module_config), module_config)
             if similarity >= module_config['line_similarity_gt']:
                 result.append([compare_ticker, similarity])
         except:

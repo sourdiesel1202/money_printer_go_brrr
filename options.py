@@ -9,7 +9,8 @@ from enums import PositionType, PriceGoalChangeType
 from polygon import OptionsClient
 import json
 import polygon
-from history import load_options_history_raw, load_ticker_history_db, load_cached_option_tickers
+from history import load_options_history_raw, load_ticker_history_db, load_cached_option_tickers, \
+    load_ticker_history_cached
 from functions import human_readable_datetime, timestamp_to_datetime
 from polygon.options import OptionSymbol
 
@@ -287,7 +288,7 @@ def analyze_option_data(position_type,ticker, ticker_history, module_config):
     # [x.split(".csv")[0] for x in os.listdir(f"{module_config['output_dir']}cached/")]
     results = []
     for contract_ticker in load_cached_option_tickers(ticker, module_config):
-        contract_history = load_ticker_history_db(contract_ticker, module_config)
+        contract_history = load_ticker_history_cached(contract_ticker, module_config)
         if (timestamp_to_datetime(contract_history[-1].timestamp).day != timestamp_to_datetime(ticker_history[-1].timestamp).day) or (timestamp_to_datetime(contract_history[-1].timestamp).month != timestamp_to_datetime(ticker_history[-1].timestamp).month) or (timestamp_to_datetime(contract_history[-1].timestamp).hour != timestamp_to_datetime(ticker_history[-1].timestamp).hour) or (timestamp_to_datetime(contract_history[-1].timestamp).minute != timestamp_to_datetime(ticker_history[-1].timestamp).minute):
             continue
         option_symbol = OptionSymbol(contract_ticker)
@@ -326,7 +327,7 @@ def load_tickers_option_data(tickers, module_config={}):
         module_config = load_module_config("market_scanner") #doing this to allow for concurrency
     for ticker in tickers:
         #just iterate through and load the data
-        ticker_history = load_ticker_history_db(ticker, module_config)
+        ticker_history = load_ticker_history_cached(ticker, module_config)
         load_ticker_option_data(ticker, ticker_history, module_config)
 def write_discovered_contracts(contracts, ticker, ticker_history, module_config, connection = None):
 

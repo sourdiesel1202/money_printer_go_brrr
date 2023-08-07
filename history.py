@@ -86,18 +86,24 @@ def write_ticker_history_db_entries(connection, ticker, ticker_history, module_c
 
         # write_ticker_history_db_entry(connection,ticker, th, module_config)
     #ok so dumb but before we run this let's do a select
-    ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
-    if len(execute_query(connection, f"select * from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=True)) > 0:
+    # ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
+    # if len(execute_query(connection, f"select * from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=True)) > 0:
 
-        # for values in values_entries:
-        for th in ticker_history:
-            values_entries = []
-            values_entries.append(f"({ticker_id}, {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
-            history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
-            # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
-            execute_update(connection,history_sql,verbose=False, auto_commit=False)
+        # for values in values_entries:\
+    #ok i don't really believe this will work but let's try it
+    execute_update(connection, "lock tables history_tickerhistory write, tickers_ticker read ")
+    ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
+    values_entries = []
+    for th in ticker_history:
+        values_entries.append(f"({ticker_id}, {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
+    history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
+        # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
+    execute_update(connection,history_sql,verbose=False, auto_commit=False)
 
     connection.commit()
+    execute_update(connection, "unlock tables")
+
+
 def convert_ticker_history_to_csv(ticker, ticker_history):
     rows = [['o','c','h','l','v','t']]
     for history in ticker_history:
@@ -169,7 +175,7 @@ def dump_ticker_cache_entries(kwarg):
 
 
 def dump_ticker_cache_entry(connection, ticker, module_config):
-    records = execute_query(connection,f"select open, close, high, low, volume, timestamp from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp desc limit 1000", verbose=False)
+    records = execute_query(connection,f"select open, close, high, low, volume, timestamp from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp desc", verbose=False)
     # reversed(records)
     records = [records[0]]+[x for x in reversed(records[1:])]
     ticker_history = [TickerHistory(*[float(x) if '.' in x else int(x) for x in records[i]]) for i in range(1, len(records))]
@@ -244,8 +250,8 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
     if cached:
         return load_ticker_history_db(ticker, module_config)
     else:
-        if os.path.exists(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv"):
-            clear_ticker_history_cache_entry(ticker,module_config)
+        # if os.path.exists(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv"):
+        #     clear_ticker_history_cache_entry(ticker,module_config)
         history_data =  []
         for entry in client.list_aggs(ticker=ticker,multiplier = multiplier, timespan = timespan, from_ = from_, to = to, limit=50000, sort='asc'):
             entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
@@ -273,7 +279,7 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
         if connection is not None:
             print(f"Writing DB history entries for ")
             write_ticker_history_db_entries(connection, ticker, history_data, {"timespan":timespan, "timespan_multiplier":multiplier})
-            connection.commit()
+            # connection.commit()
         if module_config['timespan'] == 'hour':
             history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
             module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
@@ -281,7 +287,7 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
                 write_ticker_history_db_entries(connection, ticker, history_data, module_config)
             # if module_config['logging']:
         print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
-        write_ticker_history_cached(ticker, history_data, module_config)
+        # write_ticker_history_cached(ticker, history_data, module_config)
 
         return history_data
 def write_ticker_history_cached(ticker, ticker_history, module_config):
@@ -306,6 +312,7 @@ def load_ticker_history_pd_frame(ticker, ticker_history, convert_to_datetime=Fal
 # def load_ticker_
 
 def normalize_history_data_for_hour(ticker, ticker_history, module_config):
+    print(f"Normalizing to timespans to hour for {ticker}")
     i = 1
     complete = False
 
