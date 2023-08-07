@@ -1,3 +1,4 @@
+import os
 import time
 import traceback
 
@@ -6,7 +7,7 @@ import traceback
 import numpy as np
 from statistics import mean
 
-from db_functions import load_ticker_symbol_by_id, load_ticker_history_by_id
+from tickers import load_ticker_symbol_by_id, load_ticker_history_by_id
 from functions import execute_query, execute_update, timestamp_to_datetime, human_readable_datetime, \
     calculate_percentage
 from history import load_ticker_history_cached
@@ -15,8 +16,8 @@ from shape import compare_tickers_at_index
 
 def load_profitable_line_matrix(connection,  module_config):
     #load the profitable line matrix
-    execute_update(connection, f"SET SESSION group_concat_max_len = 1000000",auto_commit=True)
-    rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name, group_concat(concat(th.ticker_id,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl, lines_profitableline_histories plh,history_tickerhistory th, lines_profitablelinetype plt  where  plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
+    execute_update(connection, f"SET SESSION group_concat_max_len = 100000000",auto_commit=True)
+    rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name, group_concat(concat(th.ticker_id,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl, (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where  plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
     results = {}
     for i in range(1, len(rows)):
         try:
@@ -34,12 +35,14 @@ def load_profitable_line_matrix(connection,  module_config):
         pass
     return results
 def update_ticker_profitable_lines(connection,profitable_line,ticker, ticker_history, profitable_lines, module_config):
+
     matches = []
     for indexes in profitable_lines.values():
         for index in indexes:
             if index not in matches:
                 matches.append(index)
-
+    #ok so lock the rows first
+    execute_query(connection, f"select * from lines_profitableline_histories where profitableline_id = (select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{profitable_line}'))", verbose=True)
     for index in matches:
         execute_update( connection, f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{profitable_line}')),(select id from history_tickerhistory where timestamp={ticker_history[index].timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))", verbose=True, auto_commit=False)
     connection.commit()
@@ -47,9 +50,15 @@ def write_ticker_profitable_lines(connection, ticker, ticker_history, profitable
     #ok so the idea where is that we write the line first and then
     for profit_percentage, indexes in profitable_lines.items():
         if len(indexes) >= module_config['line_profit_minimum_matches']:
-            new_line_str = f"Profitable Line {str(time.time()).split('.')[0]}"
-            execute_update(connection, sql=f"insert into lines_profitablelinetype (name) values ('{new_line_str}')", auto_commit=True, verbose=False)
+            new_line_str = f"Profitable Line {str(time.time()).split('.')[0]}{os.getpid()}"
+            execute_query(connection, f"select * from lines_profitablelinetype where name='{new_line_str}' ")
+            execute_update(connection, sql=f"insert ignore into lines_profitablelinetype (name) values ('{new_line_str}')", auto_commit=True, verbose=True)
+            execute_query(connection, "select * from lines_profitableline")
+
             execute_update(connection, sql=f"insert ignore into lines_profitableline (line_type_id, forward_range, backward_range, profit_percentage) values ((select id from lines_profitablelinetype where name='{new_line_str}' ),{module_config['line_profit_forward_range']},{module_config['line_profit_backward_range']},{profit_percentage})", auto_commit=True, verbose=False)
+
+            execute_query(connection,f"select * from lines_profitableline_histories where profitableline_id = (select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{new_line_str}'))",verbose=True)
+
             for index in indexes:
                 execute_update(connection,f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where forward_range={module_config['line_profit_forward_range']} and backward_range={module_config['line_profit_backward_range']} and profit_percentage={profit_percentage}), (select id from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and timestamp={ticker_history[index].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))",auto_commit=False, verbose=False)
             connection.commit()
@@ -57,7 +66,16 @@ def write_ticker_profitable_lines(connection, ticker, ticker_history, profitable
     pass
     connection.commit()
 
-def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history, module_config):
+def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history, module_config, read_only=True):
+    '''
+    ok so basically if we set read only we just return the matching profitable line, None if not
+    :param connection:
+    :param ticker:
+    :param ticker_history:
+    :param module_config:
+    :param read_only:
+    :return:
+    '''
     # /find_ticker_profitable_lines(ticker, load_ticker_history_cached(ticker, module_config, connection=connection), module_config)
     pass
     ticker_profitable_lines = find_ticker_profitable_lines(ticker, ticker_history,module_config)
@@ -68,6 +86,7 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
     for profit, indexes in ticker_profitable_lines.items():
         positive_profit = profit >=0
         matches = {}#keys of percentage matched vs the name of the line matched
+        profits = {}
         #basically we can just compare the first to the first for now
         for line, line_data in profitable_line_matrix.items():
             positive_line_data_profit = line_data['profit'] >= 0
@@ -90,7 +109,9 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
 
             try:
                 if len(ticker_history[0:indexes[0]]) >= module_config['line_profit_backward_range'] and len(loaded_histories[compare_ticker]) >= module_config['line_profit_backward_range']:
-                    matches[compare_tickers_at_index(compare_index, ticker, ticker_history[0:indexes[0]], compare_ticker, loaded_histories[compare_ticker], module_config)] = line
+                    match_likelihood = compare_tickers_at_index(compare_index, ticker, ticker_history[0:indexes[0]], compare_ticker, loaded_histories[compare_ticker], module_config)
+                    matches[match_likelihood] = line
+                    # profits[match_likelihood]= line_data['profit']
 
             except:
                 # traceback.print_exc()
@@ -101,11 +122,14 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
         if len(valid_matches) > 0:
             #if we have more than one, we use the most accurate
             # def write_ticker_profitable_lines(connection, ticker, ticker_history, profitable_lines, module_config):
-            print(f"Updating ticker lines for {matches[max(valid_matches)]}")
-            update_ticker_profitable_lines(connection, matches[max(valid_matches)], ticker, ticker_history, {profit:indexes}, module_config)
+            if not read_only:
+                print(f"Updating ticker lines for {matches[max(valid_matches)]}")
+                update_ticker_profitable_lines(connection, matches[max(valid_matches)], ticker, ticker_history, {profit:indexes}, module_config)
+            return
             pass
         else: #otherwise we need to write the profitable lines for the ticker itself
-            write_ticker_profitable_lines(connection, ticker, ticker_history, {profit:indexes}, module_config)
+            if not read_only:
+                write_ticker_profitable_lines(connection, ticker, ticker_history, {profit:indexes}, module_config)
             pass
             #ok so once we're here, we can calculate the similarity at the index
             #the challenge is finding the index of the ticker history

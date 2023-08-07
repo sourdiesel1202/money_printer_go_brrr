@@ -53,7 +53,7 @@ class ValidationType:
     DMI = 'dmi'
     ADX = 'adx'
     RSI = 'rsi'
-
+    VALIDATION_OFF = 'validation off'
 
 class StrategyType:
 
@@ -82,11 +82,13 @@ class Indicator:
     DMI = 'DMI'
     GOLDEN_CROSS = 'GOLDEN_CROSS'
     DEATH_CROSS = 'DEATH_CROSS'
+    PROFITABLE_LINE = 'PROFITABLE_LINE'
 class InventoryFunctionTypes:
     LOAD = "LOAD"
     DID_ALERT = "DID_ALERT"
     DETERMINE_ALERT_TYPE = "DETERMINE_ALERT_TYPE"
     IGNORE = "IGNORE"
+    USE_N1_BARS="USE_N1_BARS"
 strategy_type_dict ={
     PositionType.LONG:{
         StrategyType.LONG_CALL,

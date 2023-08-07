@@ -1,10 +1,82 @@
 import datetime
 import json
+import traceback
 
-from functions import timestamp_to_datetime
-from enums import PositionType
+from functions import timestamp_to_datetime, execute_query, execute_update
+from enums import PositionType, strategy_type_dict, ValidationType
 from indicators import load_sma,load_macd, load_dmi_adx, load_rsi
 # from indicators import did_sma_alert, determine_sma_alert_type
+def process_ticker_validation(connection, ticker, ticker_history, module_config):
+    '''
+    bassically iterate through the position_type:strategies dict and deterine for
+    long, short and neutral positions whether the ticker is currently valid to enter the position type
+    :param ticker:
+    :param ticker_history:
+    :param module_config:
+    :return:
+    '''
+
+    # ticker_results[ticker]['long_validation'] = ','.join([k for k, v in validate_ticker(PositionType.LONG, ticker, _th, module_config).items() if v])
+    # ticker_results[ticker]['short_validation'] = ','.join([k for k, v in validate_ticker(PositionType.SHORT, ticker, _th, module_config).items() if v])
+    # ok so here we're going to do our validations and write validation for any position types that match the position type (i.e. long call, long put, etc)b
+    if not module_config['validate']:
+        print(f"Validation is turned off in module config, stubbing in")
+        # if len(execute_query(connection,f"select * from validation_tickervalidation where validation_type in ({','.join(indicator_list)}) and strategy_type in ({','.join(strategy_list)}) and ticker_history_id=(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')")) < 2:
+        values = [f"('{ValidationType.VALIDATION_OFF}','{PositionType.LONG_OPTION}', (select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))",
+                f"('{ValidationType.VALIDATION_OFF}','{PositionType.SHORT_OPTION}', (select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))"]
+
+        execute_update(connection,f"insert into validation_tickervalidation (validation_type, strategy_type, ticker_history_id) values {','.join(values)} ",
+                       auto_commit=False, verbose=True)
+        # execute_update(connection,f"insert into backtests_backtest ( results, validation_id) values ('" + '{}' + f"', (select id from validation_tickervalidation where strategy_type='{strategy_type}' and validation_type='{indicator}' and ticker_history_id=((select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))  ))",auto_commit=False, verbose=True)
+            # execute_update(connection,f"insert into validation_tickervalidation (validation_type, strategy_type, ticker_history_id) values ('{indicator}','{strategy_type}', (select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))", auto_commit=False, verbose=True)
+        # #second, stub in the backtest
+        bt_values = [f"('" + '{}' + f"', (select id from validation_tickervalidation where strategy_type='{PositionType.LONG_OPTION}' and validation_type='{ValidationType.VALIDATION_OFF}' and ticker_history_id=((select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))  ))",f"('" + '{}' + f"', (select id from validation_tickervalidation where strategy_type='{PositionType.LONG_OPTION}' and validation_type='{ValidationType.VALIDATION_OFF}' and ticker_history_id=((select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))  ))"]
+        if len(execute_query(connection,f"select * from backtests_backtest where validation_id in (select id from validation_tickervalidation where validation_type in ({','.join(indicator_list)}) and strategy_type in ({','.join(strategy_list)}) and ticker_history_id=(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))")) < 2:
+            execute_update(connection,f"insert into backtests_backtest ( results, validation_id) values {','.join(bt_values)} ",auto_commit=False, verbose=True)
+        return
+
+
+
+    indicator_list = []
+    strategy_list = []
+    values = []
+    bt_values = []
+    for position_type, strategies in strategy_type_dict.items():
+        for k, v in validate_ticker(position_type, ticker, ticker_history, module_config).items():
+            # if module_config['logging']:
+            if v:
+                print(f"Validated {position_type} position in {ticker} ({k}), writing {len(strategies)} strategies")
+                for strategy in strategies:
+                    try:
+                        indicator_list.append(f"'{k}'")
+                        strategy_list.append(f"'{strategy}'")
+                        values.append(f"('{k}','{strategy}', (select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))")
+                        bt_values.append(f"('"+'{}'+f"', (select id from validation_tickervalidation where strategy_type='{strategy}' and validation_type='{k}' and ticker_history_id=((select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))  ))")
+                        # write_ticker_validation(connection,strategy, k, ticker, ticker_history, module_config )
+                    except:
+                        traceback.print_exc()
+
+    #ok first we need to run the sql
+    if len(execute_query(connection, f"select * from validation_tickervalidation where validation_type in ({','.join(indicator_list)}) and strategy_type in ({','.join(strategy_list)}) and ticker_history_id=(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')")) <2:
+        execute_update(connection,f"insert into validation_tickervalidation (validation_type, strategy_type, ticker_history_id) values {','.join(values)} ",auto_commit=False, verbose=True)
+        # execute_update(connection,f"insert into backtests_backtest ( results, validation_id) values ('" + '{}' + f"', (select id from validation_tickervalidation where strategy_type='{strategy_type}' and validation_type='{indicator}' and ticker_history_id=((select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))  ))",auto_commit=False, verbose=True)
+        # execute_update(connection,f"insert into validation_tickervalidation (validation_type, strategy_type, ticker_history_id) values ('{indicator}','{strategy_type}', (select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))", auto_commit=False, verbose=True)
+    # #second, stub in the backtest
+    if len(execute_query(connection, f"select * from backtests_backtest where validation_id in (select id from validation_tickervalidation where validation_type in ({','.join(indicator_list)}) and strategy_type in ({','.join(strategy_list)}) and ticker_history_id=(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))")) < 2:
+        execute_update(connection,f"insert into backtests_backtest ( results, validation_id) values {','.join(bt_values)} ", auto_commit=False, verbose=True)
+        # execute_update(connection,f"insert into backtests_backtest ( results, validation_id) values ('"+'{}'+f"', (select id from validation_tickervalidation where strategy_type='{strategy_type}' and validation_type='{indicator}' and ticker_history_id=((select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))  ))", auto_commit=False, verbose=True)
+    # execute_update(connection,f"insert into validation_tickervalidation (validation_type, strategy_type, ticker_history_id) values {','.join(values)} ",auto_commit=True, verbose=True)
+    # execute_update(connection,f"insert into validation_tickervalidation (validation_type, strategy_type, ticker_history_id) values {','.join(values)} ",auto_commit=True, verbose=True)
+    # execute_update(connection,f"insert into backtests_backtest ( results, validation_id) values {','.join(bt_values)} ", auto_commit=True, verbose=True)
+#
+
+def write_ticker_validation(connection,  strategy_type,indicator, ticker, ticker_history,module_config):
+    #first, write the validation
+    if len(execute_query(connection, f"select * from validation_tickervalidation where validation_type='{indicator}' and strategy_type ='{strategy_type}' and ticker_history_id=(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')")) <2:
+        execute_update(connection,f"insert into validation_tickervalidation (validation_type, strategy_type, ticker_history_id) values ('{indicator}','{strategy_type}', (select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))", auto_commit=False, verbose=True)
+    #second, stub in the backtest
+    if len(execute_query(connection, f"select * from backtests_backtest where validation_id = (select max(id) from validation_tickervalidation where validation_type='{indicator}' and strategy_type ='{strategy_type}' and ticker_history_id=(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}') GROUP by validation_type, ticker_history_id, strategy_type)")) < 2:
+        execute_update(connection,f"insert into backtests_backtest ( results, validation_id) values ('"+'{}'+f"', (select id from validation_tickervalidation where strategy_type='{strategy_type}' and validation_type='{indicator}' and ticker_history_id=((select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))  ))", auto_commit=False, verbose=True)
 
 def validate_tickers(position_type, tickers, module_config, client):
     pass

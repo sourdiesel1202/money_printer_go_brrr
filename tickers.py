@@ -5,6 +5,7 @@ import traceback
 
 import requests
 from functions import process_list_concurrently, load_module_config, combine_jsons, execute_update, execute_query
+from history import TickerHistory
 
 
 def load_ticker_details_concurrently(tickers):
@@ -75,3 +76,14 @@ def write_tickers_to_db(connection, tickers, module_config):
             # traceback.print_exc()
             print(ticker_sql)
         pass
+
+def load_ticker_symbol_by_id(connection,ticker_id, module_config):
+    return execute_query(connection, f"select symbol from tickers_ticker where id='{ticker_id}'")[1][0]
+def load_ticker_id_by_symbol(connection,symbol, module_config):
+    return execute_query(connection, f"select id from tickers_ticker where id='{symbol}'")[1][0]
+
+def load_ticker_last_updated(ticker, connection, module_config):
+    return int(execute_query(connection, f"select coalesce(max(timestamp), round(1000 * unix_timestamp(date_sub(now(), interval 365 day)))) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'")[1][0])
+
+def load_ticker_history_by_id(connection, ticker_history_id, ticker, module_config):
+    return TickerHistory(*[float(x) if '.' in x else int(x) for x in execute_query(connection, f"select open, close, high, low, volume, timestamp from history_tickerhistory where id='{ticker_history_id}' and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp asc")[1]])

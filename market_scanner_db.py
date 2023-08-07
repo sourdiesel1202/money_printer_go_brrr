@@ -2,7 +2,8 @@
 # import operator import itemgetter
 import urllib.parse
 
-from db_functions import load_ticker_last_updated, process_ticker_history, load_mpb_report
+from db_functions import  process_ticker_history, load_mpb_report
+from tickers import load_ticker_last_updated
 from functions import obtain_db_connection, execute_query, timestamp_to_datetime
 from multiprocessing import freeze_support
 
@@ -29,7 +30,7 @@ from functions import load_module_config, read_csv, write_csv, combine_csvs, get
 from enums import  PositionType
 from options import load_tickers_option_data
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
-module_config = load_module_config("market_scanner")
+module_config = load_module_config("market_scanner_db")
 from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results,analyze_backtest_results, analyzed_backtest_keys
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 today =get_today(module_config)
@@ -90,7 +91,7 @@ def process_tickers(tickers):
     # client = RESTClient(api_key=module_config['api_key'])
     ticker_results = {}
     # latest_entry = ""
-    connection = obtain_db_connection(load_module_config('market_scanner'))
+    connection = obtain_db_connection(load_module_config('market_scanner_db'))
     try:
         for i in range(0, len(tickers)):
 

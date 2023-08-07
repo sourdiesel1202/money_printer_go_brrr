@@ -11,6 +11,10 @@ from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_
 import pandas as pd
 import polygon
 from stockstats import wrap
+
+# from tickers import load_ticker_id_by_symbol
+
+
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 
 class TickerHistory:
@@ -76,19 +80,21 @@ class ContractHistory(TickerHistory):
             self.rho = greeks.putRho
 
 def write_ticker_history_db_entries(connection, ticker, ticker_history, module_config):
-    values_entries =[]
-    for th in ticker_history:
-        values_entries.append(f"((select id from tickers_ticker where symbol='{ticker}'), {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
+
+
         # write_ticker_history_db_entry(connection,ticker, th, module_config)
     #ok so dumb but before we run this let's do a select
-    if len(execute_query(connection, f"select * from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=False)) == 1:
+    ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
+    if len(execute_query(connection, f"select * from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=True)) > 0:
 
         # for values in values_entries:
-
-        history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
+        for th in ticker_history:
+            values_entries = []
+            values_entries.append(f"({ticker_id}, {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
+            history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
             # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
-        execute_update(connection,history_sql,verbose=False, auto_commit=False)
-    connection.commit()
+            execute_update(connection,history_sql,verbose=True, auto_commit=False)
+    # connection.commit()
 
     # execute_query(connection, f"select count(timestamp) from history_tickerhistory  where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'")
     # try:
@@ -171,7 +177,9 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
                         history_data = history_data[:-i+1]
                         break
         if connection is not None:
+            print(f"Writing DB history entries for ")
             write_ticker_history_db_entries(connection, ticker, history_data, {"timespan":timespan, "timespan_multiplier":multiplier})
+            connection.commit()
         if module_config['timespan'] == 'hour':
             history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
             module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
@@ -347,7 +355,7 @@ def write_contract_history_db_entries(connection, ticker, contract_history, modu
         values_entries.append(f"((select id from tickers_contract where symbol='{ticker}'), {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}', {th.implied_volatility}, {th.delta}, {th.theta},{th.gamma}, {th.rho})")
         # write_contract_history_db_entry(connection,ticker, th, module_config)
     #ok so dumb but before we run this let's do a select
-    if len(execute_query(connection, f"select * from history_contracthistory where timestamp >= {contract_history[0].timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and contract_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=False)) == 1:
+    if len(execute_query(connection, f"select * from history_contracthistory where timestamp >= {contract_history[0].timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and contract_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=True)) == 1:
 
         history_sql = f"INSERT ignore INTO history_contracthistory ( contract_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier, implied_volatility, delta, theta, gamma, rho) VALUES {','.join(values_entries)}"
         execute_update(connection,history_sql,verbose=True, auto_commit=False)

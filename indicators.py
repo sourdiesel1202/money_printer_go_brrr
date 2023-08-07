@@ -6,20 +6,65 @@ from itertools import chain
 from iteration_utilities import chained
 from functools import partial
 
+# from db_functions import load_ticker_symbol_by_id, load_ticker_history_by_id
 from enums import OrderType
 import datetime
 from zoneinfo import ZoneInfo
 from history import load_ticker_history_pd_frame, load_ticker_history_csv, load_ticker_history_cached
 from stockstats import wrap
 from enums import *
-from shape import compare_tickers
-from functions import human_readable_datetime, timestamp_to_datetime
+from shape import compare_tickers, compare_tickers_at_index
+from functions import human_readable_datetime, timestamp_to_datetime, execute_query, execute_update
 from support_resistance import find_support_resistance_levels
+from profitable_lines import load_profitable_line_matrix
+from tickers import load_ticker_symbol_by_id, load_ticker_history_by_id
+
+
 # from validation import validate_dmi
 
 
 # today =datetime.datetime.now().strftime("%Y-%m-%d")
 
+def process_ticker_alerts(connection, ticker, ticker_history, module_config):
+    '''
+    Similar to above, this function is to process ticker history and flag any alerts
+    :param ticker:
+    :param ticker_history:
+    :param module_config:
+    :return:
+    '''
+    _th = ticker_history
+    # ok so first things first, we will go ahead and check the alerts
+    # ticker_history = ticker_history[:-1] #since the last bar hasn't closed yet
+
+    #ok so we're going to try something different here
+    indicator_inventory = get_indicator_inventory()
+    values_list = []
+    for indicator, function_dict in indicator_inventory.items():
+        if function_dict[InventoryFunctionTypes.USE_N1_BARS]:
+            ticker_history = _th[:-1]
+        else:
+            ticker_history = _th
+        # def load_macd(ticker, ticker_history, module_config):
+        # def did_golden_cross_alert(indicator_data, ticker, ticker_history, module_config)
+        # def determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config):
+        if function_dict[InventoryFunctionTypes.DID_ALERT](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history,module_config, connection=connection), ticker, ticker_history, module_config, connection=connection):
+            #alert did fire, so now we need to write the alert
+            try:
+                values_list.append(f"('{function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history,module_config, connection=connection), ticker, ticker_history, module_config, connection=connection)}',(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))")
+                # write_ticker_alert(connection, function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history,module_config), ticker, ticker_history, module_config), ticker, _th,module_config )
+            except:
+                traceback.print_exc()
+
+    if len(values_list) > 0:
+        execute_query(connection,f"select * from alerts_tickeralert where ticker_history_id=(select max(id) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')", verbose=True)
+        execute_update(connection,f"insert ignore into alerts_tickeralert (alert_type, ticker_history_id) values {','.join(values_list)}",auto_commit=False, verbose=True)
+    #iterate back through, but this time we only fire the ignore functions, which should simply load the alerts for the period from the DB and then
+    # ignore any alerts based upon other alerts
+    for indicator, function_dict in indicator_inventory.items():
+        # def ignore_golden_cross_alert(connection, alert_direction, ticker, ticker_history, module_config):
+        #pass in as callable,
+        function_dict[InventoryFunctionTypes.IGNORE](connection, function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE], ticker, _th, module_config)
 
 def get_indicator_inventory():
     '''
@@ -38,50 +83,67 @@ def get_indicator_inventory():
             InventoryFunctionTypes.LOAD: load_sma,
             InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_sma_alert_type,
             InventoryFunctionTypes.DID_ALERT: did_sma_alert,
-            InventoryFunctionTypes.IGNORE: ignore_sma_alert
+            InventoryFunctionTypes.IGNORE: ignore_sma_alert,
+            InventoryFunctionTypes.USE_N1_BARS: True
         },
 
         Indicator.RSI:{
             InventoryFunctionTypes.LOAD: load_rsi,
             InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_rsi_alert_type,
             InventoryFunctionTypes.DID_ALERT: did_rsi_alert,
-            InventoryFunctionTypes.IGNORE: ignore_rsi_alert
+            InventoryFunctionTypes.IGNORE: ignore_rsi_alert,
+            InventoryFunctionTypes.USE_N1_BARS: True
 
         },
         Indicator.DMI: {
             InventoryFunctionTypes.LOAD: load_dmi_adx,
             InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_dmi_alert_type,
             InventoryFunctionTypes.DID_ALERT: did_dmi_alert,
-            InventoryFunctionTypes.IGNORE: ignore_dmi_alert
+            InventoryFunctionTypes.IGNORE: ignore_dmi_alert,
+            InventoryFunctionTypes.USE_N1_BARS: True
         },
         Indicator.ADX: {
             InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_adx_alert_type,
             InventoryFunctionTypes.LOAD: load_dmi_adx,
             InventoryFunctionTypes.DID_ALERT: did_adx_alert,
-            InventoryFunctionTypes.IGNORE: ignore_adx_alert
+            InventoryFunctionTypes.IGNORE: ignore_adx_alert,
+            InventoryFunctionTypes.USE_N1_BARS: True
         },
         Indicator.MACD: {
             InventoryFunctionTypes.LOAD: load_macd,
             InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_macd_alert_type,
             InventoryFunctionTypes.DID_ALERT: did_macd_alert,
-            InventoryFunctionTypes.IGNORE: ignore_macd_alert
+            InventoryFunctionTypes.IGNORE: ignore_macd_alert,
+            InventoryFunctionTypes.USE_N1_BARS: True
         },
         Indicator.GOLDEN_CROSS: {
             InventoryFunctionTypes.LOAD: load_golden_cross,
             InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_golden_cross_alert_type,
             InventoryFunctionTypes.DID_ALERT: did_golden_cross_alert,
-            InventoryFunctionTypes.IGNORE: ignore_golden_cross_alert
+            InventoryFunctionTypes.IGNORE: ignore_golden_cross_alert,
+            InventoryFunctionTypes.USE_N1_BARS: True
         },
         Indicator.DEATH_CROSS: {
             InventoryFunctionTypes.LOAD: load_death_cross,
             InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_death_cross_alert_type,
             InventoryFunctionTypes.DID_ALERT: did_death_cross_alert,
-            InventoryFunctionTypes.IGNORE: ignore_death_cross_alert
+            InventoryFunctionTypes.IGNORE: ignore_death_cross_alert,
+            InventoryFunctionTypes.USE_N1_BARS: True
+        },
+        Indicator.PROFITABLE_LINE: {
+            InventoryFunctionTypes.LOAD: load_profitable_lines,
+            InventoryFunctionTypes.DID_ALERT: did_profitable_lines_alert,
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_profitable_lines_alert_type,
+            InventoryFunctionTypes.IGNORE: ignore_profitable_lines_alert,
+            InventoryFunctionTypes.USE_N1_BARS: False
         }
+
 
     }
 
 
+def ignore_profitable_lines_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
 def ignore_golden_cross_alert(connection, alert_direction, ticker, ticker_history, module_config):
     pass
 def ignore_death_cross_alert(connection, alert_direction, ticker, ticker_history, module_config):
@@ -123,10 +185,10 @@ def ignore_dmi_alert(connection, alert_direction, ticker, ticker_history, module
     pass
 # def ignore_macd(ticker,ticker_history, module_config):
 # def ignore_sma(ticker,ticker_history, module_config):
-def load_macd(ticker,ticker_history, module_config):
+def load_macd(ticker,ticker_history, module_config, connection=None):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     return {'macd':df['macd'],'signal':df['macds'], 'histogram': df['macdh']}
-def load_support_resistance(ticker, ticker_history, module_config, flatten=False):
+def load_support_resistance(ticker, ticker_history, module_config, flatten=False,connection=None):
 
     if flatten:
         flattened_levels = list(chain.from_iterable(find_support_resistance_levels(ticker, ticker_history, module_config)))
@@ -135,16 +197,18 @@ def load_support_resistance(ticker, ticker_history, module_config, flatten=False
     else:
         return find_support_resistance_levels(ticker, ticker_history, module_config)
 
-def load_sma(ticker,ticker_history, module_config, window=0):
+def load_sma(ticker,ticker_history, module_config, window=0,connection=None):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     if window >0:
         # print(f"Returning {window} SMA")
         return df[f'close_{window}_sma']
     else:
         return df[f'close_{module_config["sma_window"]}_sma']
-def load_golden_cross(ticker,ticker_history, module_config):
+
+
+def load_golden_cross(ticker,ticker_history, module_config,connection=None):
     return {"sma_long":load_sma(ticker,ticker_history,module_config, window=module_config['gc_long_sma_window']), f"sma_short":load_sma(ticker,ticker_history,module_config, window=module_config['gc_short_sma_window'])}
-def load_death_cross(ticker,ticker_history, module_config):
+def load_death_cross(ticker,ticker_history, module_config,connection=None):
     return {"sma_long":load_sma(ticker,ticker_history,module_config, window=module_config['dc_long_sma_window']), f"sma_short":load_sma(ticker,ticker_history,module_config, window=module_config['dc_short_sma_window'])}
 
 # def load_sma(ticker, client,module_config, ticker_history, **kwargs):
@@ -159,7 +223,7 @@ def load_death_cross(ticker,ticker_history, module_config):
 #
 #
 #
-def load_rsi(ticker, ticker_history, module_config):
+def load_rsi(ticker, ticker_history, module_config,connection=None):
     df = wrap(load_ticker_history_pd_frame(ticker, ticker_history))
     return df['rsi']
 
@@ -174,7 +238,7 @@ def load_rsi(ticker, ticker_history, module_config):
 #             print(f"{entry_date}: {ticker}: RSI {entry.value}")
 #         _rsi.append(entry)
 #     return _rsi
-def load_obv(ticker, client,module_config, **kwargs):
+def load_obv(ticker, client,module_config,connection=None, **kwargs):
     pass
 # def load_adx(ticker, client, **kwargs):
     # load_dmi(ticker,client,**kwargs)
@@ -201,7 +265,7 @@ def is_trading_in_sr_band(indicator_data, ticker, ticker_history, module_config,
                 return True
     return False
 
-def load_dmi_adx(ticker, ticker_history, module_config, **kwargs):
+def load_dmi_adx(ticker, ticker_history, module_config,connection=None, **kwargs):
     '''
     Returns a dict formatted like {'dmi+':<series_data>, 'dmi-':<series_data>, 'adx':<series_data>}
     where keys in the series are timestamps as loaded in load_ticker_history
@@ -225,7 +289,7 @@ def load_dmi_adx(ticker, ticker_history, module_config, **kwargs):
 
     return dmi
 
-def did_macd_alert(indicator_data,ticker,ticker_history, module_config):
+def did_macd_alert(indicator_data,ticker,ticker_history, module_config,connection=None):
     if module_config['logging']:
         print(f"Checking MACD Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
     # print(f"{ticker_history[-1]}:{ticker}: RSI determined to be {AlertType.RSI_OVERSOLD}: RSI: {indicator_data[ticker_history[-1].timestamp]} ")
@@ -250,7 +314,45 @@ def did_macd_alert(indicator_data,ticker,ticker_history, module_config):
 #         return False
 #     pass
 
-def did_sma_alert(indicator_data,ticker,ticker_history, module_config):
+def did_profitable_lines_alert(indicator_data,ticker,ticker_history, module_config,connection=None):
+    matches = {}
+    for line, line_data in indicator_data.items():
+        positive_line_data_profit = line_data['profit'] >= 0
+        # so here we load the ticker histroy
+        # if positive_profit != positive_line_data_profit:
+        #     print(
+        #         f"Skipping Historic Profit Line of {line_data['profit']}%, the trend is in the opposite direction of profit {profit}%")
+        #     continue
+        try:
+            compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0],
+                                                      module_config)
+        except:
+            traceback.print_exc()
+            print()
+            raise Exception
+        loaded_histories ={compare_ticker: load_ticker_history_cached(compare_ticker, module_config,connection=connection)}
+
+        history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],
+                                                  compare_ticker, module_config)
+        compare_index = next((i for i, item in enumerate(loaded_histories[compare_ticker]) if item.timestamp == history_entry.timestamp),-1)
+
+        try:
+            if len(ticker_history) >= module_config['line_profit_backward_range'] and len(loaded_histories[compare_ticker]) >= module_config['line_profit_backward_range']:
+                match_likelihood = compare_tickers_at_index(compare_index, ticker, ticker_history,compare_ticker, loaded_histories[compare_ticker],module_config)
+                matches[match_likelihood] = line
+                print(f"We actually found  a match")
+                # profits[match_likelihood]= line_data['profit']
+
+        except:
+            # traceback.print_exc()
+            # print(f"Cannot calculate shape similarity between {ticker} (size: {len(ticker_history[0:indexes[0]])}) and {compare_ticker} (size: {len(loaded_histories[compare_ticker])}), not enough historical bars ")
+            continue
+
+    valid_matches = [x for x in matches.keys() if x > module_config['line_similarity_gt']]
+    if len(valid_matches) > 0:
+        return True
+
+def did_sma_alert(indicator_data,ticker,ticker_history, module_config,connection=None):
     if module_config['logging']:
         print(f"Checking SMA Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))} to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}")
     if (ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].low > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open and ticker_history[-2].low <= indicator_data[ticker_history[-2].timestamp])  or \
@@ -259,7 +361,7 @@ def did_sma_alert(indicator_data,ticker,ticker_history, module_config):
     else:
         return False
 
-def determine_sma_alert_type(indicator_data,ticker,ticker_history, module_config):
+def determine_sma_alert_type(indicator_data,ticker,ticker_history, module_config,connection=None):
     if (ticker_history[-1].close > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].open > indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close > ticker_history[-1].open and ticker_history[-2].low <= indicator_data[ticker_history[-2].timestamp]):
         return AlertType.SMA_CONFIRMATION_UPWARD
     elif (ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < indicator_data[ticker_history[-1].timestamp] and ticker_history[-1].close < ticker_history[-1].open and ticker_history[-2].high >= indicator_data[ticker_history[-2].timestamp]):
@@ -268,12 +370,12 @@ def determine_sma_alert_type(indicator_data,ticker,ticker_history, module_config
         raise Exception(f"Could not determine SMA Direction for {ticker}")
 
 
-def did_golden_cross_alert(indicator_data,ticker,ticker_history, module_config):
+def did_golden_cross_alert(indicator_data,ticker,ticker_history, module_config,connection=None):
     if module_config['logging']:
         print(f"Checking Golden Cross Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Long SMA {indicator_data['sma_long'][ticker_history[-1].timestamp]} Short SMA: {indicator_data['sma_short'][ticker_history[-1].timestamp]}: to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Long SMA {indicator_data['sma_long'][ticker_history[-2].timestamp]} Short SMA: {indicator_data['sma_short'][ticker_history[-2].timestamp]}:")
     return indicator_data['sma_short'][ticker_history[-1].timestamp] > indicator_data['sma_long'][ticker_history[-1].timestamp] and indicator_data['sma_short'][ticker_history[-2].timestamp] < indicator_data['sma_long'][ticker_history[-2].timestamp]
 
-def did_death_cross_alert(indicator_data, ticker, ticker_history, module_config):
+def did_death_cross_alert(indicator_data, ticker, ticker_history, module_config,connection=None):
     if module_config['logging']:
         print(
             f"Checking Death Cross Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Long SMA {indicator_data['sma_long'][ticker_history[-1].timestamp]} Short SMA: {indicator_data['sma_short'][ticker_history[-1].timestamp]}: to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Long SMA {indicator_data['sma_long'][ticker_history[-2].timestamp]} Short SMA: {indicator_data['sma_short'][ticker_history[-2].timestamp]}:")
@@ -299,7 +401,7 @@ def did_death_cross_alert(indicator_data, ticker, ticker_history, module_config)
 #         return False
 
 
-def did_adx_alert(dmi_data,ticker,ticker_data,module_config):
+def did_adx_alert(dmi_data,ticker,ticker_data,module_config,connection=None):
     '''
     Pass in the data from the client and do calculations
     :param data:
@@ -317,7 +419,7 @@ def did_adx_alert(dmi_data,ticker,ticker_data,module_config):
         return False
 
 
-def did_dmi_alert(dmi_data,ticker,ticker_data,module_config):
+def did_dmi_alert(dmi_data,ticker,ticker_data,module_config,connection=None):
 
     # ok so check for dmi+ crossing over dmi- AND dmi+ over adx OR dmi- crossing over dmi+ AND dmi- over adx
     if (dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-2].timestamp] < dmi_data['dmi-'][ticker_data[-2].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] >  dmi_data['adx'][ticker_data[-1].timestamp]) or (dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-2].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] >  dmi_data['adx'][ticker_data[-1].timestamp]):
@@ -329,7 +431,7 @@ def did_dmi_alert(dmi_data,ticker,ticker_data,module_config):
 
 
 
-def did_rsi_alert(indicator_data,ticker,ticker_history, module_config):
+def did_rsi_alert(indicator_data,ticker,ticker_history, module_config,connection=None):
     if module_config['logging']:
         print(f"${ticker}: Checking RSI Alert, Comparing Value at {datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: to value at {datetime.datetime.fromtimestamp(ticker_history[-2].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}:")
     if indicator_data[ticker_history[-1].timestamp] > module_config['rsi_overbought_threshold'] or indicator_data[ticker_history[-1].timestamp] < module_config['rsi_oversold_threshold']:
@@ -347,7 +449,7 @@ def did_rsi_alert(indicator_data,ticker,ticker_history, module_config):
 #         return  False
 
 
-def determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config):
+def determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config,connection=None):
     if (indicator_data['macd'][ticker_history[-1].timestamp] > indicator_data['signal'][ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] < indicator_data['signal'][ticker_history[-2].timestamp] and (indicator_data['histogram'][ticker_history[-1].timestamp] > indicator_data['histogram'][ticker_history[-2].timestamp] and indicator_data['histogram'][ticker_history[-1].timestamp] > 0)) :
         return AlertType.MACD_MACD_CROSS_SIGNAL
     elif (indicator_data['macd'][ticker_history[-1].timestamp] < indicator_data['signal'][ ticker_history[-1].timestamp] and indicator_data['macd'][ticker_history[-2].timestamp] > indicator_data['signal'][ticker_history[-2].timestamp] and (indicator_data['histogram'][ticker_history[-1].timestamp] < indicator_data['histogram'][ticker_history[-2].timestamp] and indicator_data['histogram'][ticker_history[-1].timestamp] < 0)):
@@ -367,7 +469,7 @@ def determine_macd_alert_type(indicator_data,ticker,ticker_history, module_confi
 #         return AlertType.MACD_SIGNAL_CROSS_MACD
 #     else:
 #         raise Exception(f"Could not determine MACD direction for: {ticker}")
-def determine_rsi_alert_type(indicator_data,ticker,ticker_history, module_config):
+def determine_rsi_alert_type(indicator_data,ticker,ticker_history, module_config,connection=None):
     if indicator_data[ticker_history[-1].timestamp] >= module_config['rsi_overbought_threshold']:
         if module_config['logging']:
             entry_date = datetime.datetime.fromtimestamp(ticker_history[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
@@ -394,11 +496,51 @@ def determine_rsi_alert_type(indicator_data,ticker,ticker_history, module_config
 #     else:
 #         raise Exception(f"Could not determine RSI Direction for {ticker}")
 
-def determine_adx_alert_type(data, ticker,ticker_data,  module_config):
+
+def determine_profitable_lines_alert_type(indicator_data,ticker,ticker_history, module_config, connection=None):
+    matches = {}
+    for line, line_data in indicator_data.items():
+        positive_line_data_profit = line_data['profit'] >= 0
+        # so here we load the ticker histroy
+        # if positive_profit != positive_line_data_profit:
+        #     print(
+        #         f"Skipping Historic Profit Line of {line_data['profit']}%, the trend is in the opposite direction of profit {profit}%")
+        #     continue
+        try:
+            compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0],
+                                                      module_config)
+        except:
+            traceback.print_exc()
+            print()
+            raise Exception
+        loaded_histories ={compare_ticker: load_ticker_history_cached(compare_ticker, module_config,connection=connection)}
+
+        history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],
+                                                  compare_ticker, module_config)
+        compare_index = next((i for i, item in enumerate(loaded_histories[compare_ticker]) if item.timestamp == history_entry.timestamp),-1)
+
+        try:
+            if len(ticker_history) >= module_config['line_profit_backward_range'] and len(loaded_histories[compare_ticker]) >= module_config['line_profit_backward_range']:
+                match_likelihood = compare_tickers_at_index(compare_index, ticker, ticker_history,compare_ticker, loaded_histories[compare_ticker],module_config)
+                matches[match_likelihood] = line
+                print(f"We actually found  a match")
+                # profits[match_likelihood]= line_data['profit']
+
+        except:
+            # traceback.print_exc()
+            # print(f"Cannot calculate shape similarity between {ticker} (size: {len(ticker_history[0:indexes[0]])}) and {compare_ticker} (size: {len(loaded_histories[compare_ticker])}), not enough historical bars ")
+            continue
+
+    valid_matches = [x for x in matches.keys() if x > module_config['line_similarity_gt']]
+    if len(valid_matches) > 0:
+        return f"{matches[max(valid_matches)]}|{indicator_data[matches[max(valid_matches)]]['forward_range']} bars|{indicator_data[matches[max(valid_matches)]]['profit']}%"
+    else:
+        raise Exception(f"Cannot determine profitable line type for {ticker}: No profitable lines were matched, how did you get here?")
+def determine_adx_alert_type(data, ticker,ticker_data,  module_config,connection=None):
     return AlertType.ADX_THRESHOLD_UPWARD
 #
 # def determine_dmi_alert_type(data, ticker, ticker_data, module_config):
-def determine_dmi_alert_type(data, ticker, ticker_data, module_config):
+def determine_dmi_alert_type(data, ticker, ticker_data, module_config,connection=None):
     if (data['dmi+'][ticker_data[-1].timestamp] > data['dmi-'][ticker_data[-1].timestamp] and data['dmi+'][ticker_data[-2].timestamp] < data['dmi-'][ticker_data[-2].timestamp] and data['dmi+'][ticker_data[-1].timestamp] > data['adx'][ticker_data[-1].timestamp]):
         if module_config['logging']:
             print(f"{datetime.datetime.fromtimestamp(ticker_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:{ticker}: DMI Alert Determined Directio: {AlertType.DMIPLUS_CROSSOVER_DMINEG} (DMI+: {data['dmi+'][ticker_data[-1].timestamp]} DMI-:{data['dmi-'][ticker_data[-1].timestamp]} ADX: {data['adx'][ticker_data[-1].timestamp]})")
@@ -413,12 +555,12 @@ def determine_dmi_alert_type(data, ticker, ticker_data, module_config):
         raise Exception(f"Could not determine RSI Direction for {ticker}")
 
 
-def determine_death_cross_alert_type(indicator_data,ticker,ticker_history, module_config):
+def determine_death_cross_alert_type(indicator_data,ticker,ticker_history, module_config,connection=None):
     if indicator_data['sma_short'][ticker_history[-1].timestamp] < indicator_data['sma_long'][ticker_history[-1].timestamp] and indicator_data['sma_short'][ticker_history[-2].timestamp] > indicator_data['sma_long'][ticker_history[-2].timestamp]:
         return AlertType.DEATH_CROSS_APPEARED
     else:
         raise Exception(f"Could not determine Golden Cross Alert for {ticker}")
-def determine_sr_direction(indicator_data,ticker,ticker_history, module_config):
+def determine_sr_direction(indicator_data,ticker,ticker_history, module_config,connection=None):
     if len(indicator_data) == 0:
         raise Exception("Cannot determine Support/Resistance Direction with no data!")
     plus_minus = sum([round(float((x[1] - x[0]) / 2), 2) for x in indicator_data if len(x) > 1]) / len(indicator_data)
@@ -481,7 +623,7 @@ def determine_sr_direction(indicator_data,ticker,ticker_history, module_config):
             return AlertType.BREAKOUT_SR_UP+f"==>${round(distance_to_points[0]+ticker_history[-1].close,2)} (${round(distance_to_points[0],2)}/{round(float(distance_to_points[0] / ticker_history[-1].close)*100,2)}%)"
         else:
             return AlertType.BREAKOUT_SR_DOWN+f"==>${round(distance_to_points[0]+ticker_history[-1].close,2)} (${round(distance_to_points[0],2)}/{round(float(distance_to_points[0] / ticker_history[-1].close)*100,2)}%)"
-def determine_golden_cross_alert_type(indicator_data,ticker,ticker_history, module_config):
+def determine_golden_cross_alert_type(indicator_data,ticker,ticker_history, module_config,connection=None):
     if did_golden_cross_alert(indicator_data,ticker,ticker_history,module_config):
         return AlertType.GOLDEN_CROSS_APPEARED
     else:
@@ -491,7 +633,9 @@ def determine_golden_cross_alert_type(indicator_data,ticker,ticker_history, modu
 def has_matching_trend_with_ticker(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config):
     return compare_tickers(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config) >= module_config['line_similarity_gt']
 
-def load_ticker_similar_trends(ticker, module_config):
+def load_profitable_lines(ticker,ticker_history, module_config,connection=None):
+    return load_profitable_line_matrix(connection, module_config)
+def load_ticker_similar_trends(ticker, module_config,connection=None):
     ticker_history = load_ticker_history_cached(ticker, module_config)
     result = []
     # if module_config['logging']:
