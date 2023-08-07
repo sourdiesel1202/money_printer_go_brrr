@@ -10,7 +10,7 @@ from statistics import mean
 # from db_functions import load_profitable_line_matrix
 from functions import timestamp_to_datetime, human_readable_datetime, execute_query, execute_update
 # from functions import calculate_percentage
-# from history import load_ticker_history_cached
+# from history import load_ticker_history_db
 
 
 

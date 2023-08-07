@@ -11,7 +11,7 @@ from functions import load_module_config, get_today, human_readable_datetime, ti
 module_config = load_module_config('market_scanner_tester')
 from support_resistance import find_support_resistance_levels
 # from shape import compare_tickers
-from history import  load_ticker_history_cached
+from history import  load_ticker_history_db
 from indicators import load_support_resistance, is_trading_in_sr_band, determine_sr_direction
 
 if __name__ == '__main__':
@@ -21,7 +21,7 @@ if __name__ == '__main__':
     # ticker_b = module_config['compare_ticker']
     for ticker in module_config['tickers']:
         # module_config['logging'] = True
-        _th = load_ticker_history_cached(ticker, module_config)[-180:]
+        _th = load_ticker_history_db(ticker, module_config)[-180:]
         for i in reversed(range(10, len(_th)-10)):
             ticker_history = _th[:i]
             if module_config['logging']:
@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
                 print(f"{human_readable_datetime(timestamp_to_datetime(ticker_history[-1].timestamp))}:${ticker}: Testing Support Resistance (Last Close ${ticker_history[-1].close}) Alert Fired: {output}")
 
-        # find_support_resistance_levels(ticker_a, load_ticker_history_cached(ticker_a, module_config), module_config)
+        # find_support_resistance_levels(ticker_a, load_ticker_history_db(ticker_a, module_config), module_config)
         # for ticker_b in module_config['compare_tickers']:
         #     ticker_history_a = load_ticker_history_raw(ticker_a, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000,module_config)
         #     ticker_history_b = load_ticker_history_raw(ticker_b, client, 1, module_config['timespan'],get_today(module_config, minus_days=7), get_today(module_config), 50000, module_config)

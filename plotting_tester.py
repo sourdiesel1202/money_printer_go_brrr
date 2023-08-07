@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 # from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results, analyze_backtest_results
 import polygon, datetime
 
-from history import load_ticker_history_raw,load_ticker_history_cached
+from history import load_ticker_history_raw,load_ticker_history_db
 # from validation import validate_ticker
 from functions import load_module_config, get_today, obtain_db_connection
 
@@ -22,7 +22,7 @@ if __name__ == '__main__':
     for ticker_a in module_config['tickers']:
         # for ticker_b in module_config['compare_tickers']:
         connection = obtain_db_connection(module_config)
-        ticker_history_a = load_ticker_history_cached(ticker_a, module_config, connection=connection)
+        ticker_history_a = load_ticker_history_db(ticker_a, module_config, connection=connection)
         # indicator_dict = {
         #     "sma": {
         #         "plot": plot_indicator_data(ticker_a, ticker_history_a[-80:], load_sma(ticker_a, ticker_history_a,module_config), module_config, name='sma10'),

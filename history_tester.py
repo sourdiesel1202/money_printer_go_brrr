@@ -8,7 +8,7 @@ import polygon, datetime
 
 from enums import PositionType
 # from polygon.rest import RESTClient as RESTCLient
-from history import load_ticker_history_raw, load_options_history_raw, load_ticker_history_cached
+from history import load_ticker_history_raw, load_options_history_raw, load_ticker_history_db
 # from validation import validate_ticker
 from functions import load_module_config, get_today, obtain_db_connection
 from options import load_ticker_option_data#, mcv_load_options_contracts
@@ -27,12 +27,12 @@ if __name__ == '__main__':
     options_client = polygon.OptionsClient(api_key=module_config['api_key'])
     module_config['logging']=True
     for ticker_a in module_config['tickers']:
-        # contract_tickers = load_ticker_option_data(ticker_a, load_ticker_history_cached(ticker_a, module_config), module_config)
+        # contract_tickers = load_ticker_option_data(ticker_a, load_ticker_history_db(ticker_a, module_config), module_config)
 
 
         # def analyze_option_data(position_type, ticker, ticker_history, module_config):
 
-        # analyze_option_data(PositionType.LONG, ticker_a,load_ticker_history_cached(ticker_a, module_config), module_config)
+        # analyze_option_data(PositionType.LONG, ticker_a,load_ticker_history_db(ticker_a, module_config), module_config)
         # for _date in contract_tickers:
         #     print(f"found {len(contract_tickers[_date])} contracts at date {_date}")
         # for option_contract in contract_tickers[_date]:

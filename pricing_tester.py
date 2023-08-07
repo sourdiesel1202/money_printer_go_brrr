@@ -3,7 +3,7 @@ from enums import AlertType, PositionType, PriceGoalChangeType
 from backtest import backtest_ticker, load_backtest_ticker_data, backtest_ticker_concurrently, load_backtest_results, analyze_backtest_results
 import polygon, datetime
 
-from history import load_ticker_history_raw, load_ticker_history_cached
+from history import load_ticker_history_raw, load_ticker_history_db
 from validation import validate_ticker
 from functions import load_module_config, get_today
 # module_config = load_module_config(__file__.split("/")[-1].split(".py")[0])
@@ -53,9 +53,9 @@ def run_pricing_test(test_positions, module_config):
             else:
                 ask_price_string = f"${position['ask_price_goal']}"
             #ok so we enter the position first
-            print(f"\n#### TESTING POSITION {i}/{len(positions)} (ENTRY)\n Targets for {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['tickers'][0]}): current asset price: ${module_config['asset_price']}: we suggest entering the position at the following asset price: ${determine_entry_target(position_type, module_config['tickers'][0],load_ticker_history_cached(module_config['tickers'][0], module_config), module_config)} \n")
+            print(f"\n#### TESTING POSITION {i}/{len(positions)} (ENTRY)\n Targets for {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['tickers'][0]}): current asset price: ${module_config['asset_price']}: we suggest entering the position at the following asset price: ${determine_entry_target(position_type, module_config['tickers'][0],load_ticker_history_db(module_config['tickers'][0], module_config), module_config)} \n")
 
-            print(f"\n#### TESTING POSITION {i}/{len(positions)} (EXIT)\n Targets for {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['tickers'][0]}): current asset price: ${module_config['asset_price']}: we suggest exiting the position at the following asset price: ${determine_exit_target(position_type,69.69, module_config['tickers'][0], load_ticker_history_cached(module_config['tickers'][0], module_config), module_config)} \n")
+            print(f"\n#### TESTING POSITION {i}/{len(positions)} (EXIT)\n Targets for {position_type} position ({PositionType.LONG_OPTION if position_type == PositionType.LONG else PositionType.SHORT_OPTION}) in $({module_config['tickers'][0]}): current asset price: ${module_config['asset_price']}: we suggest exiting the position at the following asset price: ${determine_exit_target(position_type,69.69, module_config['tickers'][0], load_ticker_history_db(module_config['tickers'][0], module_config), module_config)} \n")
             # print
             # result = calculate_price_change_for_entry(position['bid_price_goal_type'], position_type,
             #                                          module_config['asset_price'], module_config['strike_price'],

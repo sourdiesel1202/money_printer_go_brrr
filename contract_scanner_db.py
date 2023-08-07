@@ -24,7 +24,7 @@ import time
 from options import analyze_option_data, load_ticker_option_data, load_ticker_option_contracts as _load_ticker_option_contracts, load_ticker_contract_history as _load_ticker_contract_history
 from zoneinfo import ZoneInfo
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv, \
-    clear_ticker_history_cache, load_ticker_history_cached
+    clear_ticker_history_cache, load_ticker_history_db
 from functions import load_module_config, read_csv, write_csv, combine_csvs, get_today, process_list_concurrently
 from enums import  PositionType
 from options import load_tickers_option_data
@@ -55,7 +55,7 @@ def process_tickers(tickers):
                 if module_config['logging']:
                     print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
                 # ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=365), today, 10000, module_config)
-                ticker_history = load_ticker_history_cached(ticker, module_config, connection=connection)
+                ticker_history = load_ticker_history_db(ticker, module_config, connection=connection)
                 test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
                 if ticker_history[-1].volume < module_config['volume_limit'] or ticker_history[-1].close < module_config['price_limit']:
                     # if module_  config['logging']:
@@ -92,7 +92,7 @@ def process_tickers(tickers):
 #         for ticker in _tickers:
 #             #ok so first we need to load the ticker history
 #             print(f"{os.getpid()}: Loading contract data for {_tickers.index(ticker)+1}/{len(_tickers)} ")
-#             th = load_ticker_history_cached(ticker, module_config, connection=connection)
+#             th = load_ticker_history_db(ticker, module_config, connection=connection)
 #             try:
 #                 #ok so what we need to do here is load our contract data now
 #                 pass
@@ -116,7 +116,7 @@ def load_ticker_option_contracts(ticker_list):
     for ticker in ticker_list:
 
         try:
-                _load_ticker_option_contracts(ticker, load_ticker_history_cached(ticker, module_config, connection=connection), module_config, connection=connection)
+                _load_ticker_option_contracts(ticker, load_ticker_history_db(ticker, module_config, connection=connection), module_config, connection=connection)
                 print(f"Loaded contracts for {ticker_list.index(ticker)}/{len(ticker_list)-1}")
         except:
             traceback.print_exc()
@@ -139,7 +139,7 @@ def load_ticker_contract_history(contract_data):
     for ticker, contracts in contract_dict.items():
         # ticker = data[-1]
         try:
-                _load_ticker_contract_history(contracts,ticker, load_ticker_history_cached(ticker, module_config, connection=connection), module_config, connection=connection)
+                _load_ticker_contract_history(contracts,ticker, load_ticker_history_db(ticker, module_config, connection=connection), module_config, connection=connection)
                 print(f"Loaded contract history for {[x for x in contract_dict.keys()].index(ticker)}/{len([x for x in contract_dict.keys()])-1} tickers, ({len(contracts)} contracts)")
         except:
             traceback.print_exc()

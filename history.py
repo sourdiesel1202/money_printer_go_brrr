@@ -1,5 +1,7 @@
+import multiprocessing
 import os
 import time, polygon
+import traceback
 
 import mibian
 from polygon import OptionSymbol
@@ -7,7 +9,7 @@ from polygon import OptionSymbol
 from enums import OrderType, PositionType
 import datetime,io
 from zoneinfo import ZoneInfo
-from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today, timestamp_to_datetime, human_readable_datetime, execute_query, execute_update
+from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today, timestamp_to_datetime, human_readable_datetime, execute_query, execute_update, obtain_db_connection
 import pandas as pd
 import polygon
 from stockstats import wrap
@@ -93,35 +95,38 @@ def write_ticker_history_db_entries(connection, ticker, ticker_history, module_c
             values_entries.append(f"({ticker_id}, {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
             history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
             # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
-            execute_update(connection,history_sql,verbose=True, auto_commit=False)
-    # connection.commit()
+            execute_update(connection,history_sql,verbose=False, auto_commit=False)
 
-    # execute_query(connection, f"select count(timestamp) from history_tickerhistory  where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'")
-    # try:
-    #     history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
-    #     execute_update(connection,history_sql,verbose=True, auto_commit=True)
-    # except:
-    #     try:
-    #         history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
-    #         execute_update(connection, history_sql, verbose=True, auto_commit=True)
-    #     except Exception as e:
-    #         print(f"Could not process ticker history for {ticker}")
-    #         raise e
     connection.commit()
 def convert_ticker_history_to_csv(ticker, ticker_history):
     rows = [['o','c','h','l','v','t']]
     for history in ticker_history:
         rows.append([history.open, history.close, history.high, history.low, history.volume, history.timestamp])
     return rows
-def load_ticker_history_cached(ticker,module_config, connection=None):
+
+def load_ticker_history_cached(ticker,module_config):
+    '''
+    Load from local cache (data/output/*)
+    basically this should speed up the process a lot
+    MUST call build_ticker_cache_first
+    :param ticker:
+    :param module_config:
+    :return:
+    '''
     ticker_history = []
 
-    if connection is None:
-        for entry in read_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[1:]:
-            ticker_history.append(TickerHistory(*[float(x) for x in entry]))
-    else:
-        records =execute_query(connection, f"select open, close, high, low, volume, timestamp from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp asc")
-        ticker_history =[TickerHistory(*[float(x) if '.' in x else int(x) for x in records[i]]) for i in range(1, len(records))]
+    for entry in read_csv(
+            f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[1:]:
+        ticker_history.append(TickerHistory(*[float(x) for x in entry]))
+
+    return ticker_history
+def load_ticker_history_db(ticker,module_config, connection=None):
+    # ticker_history = []
+
+    # if connection is None:
+    # else:
+    records =execute_query(connection, f"select open, close, high, low, volume, timestamp from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp asc")
+    ticker_history =[TickerHistory(*[float(x) if '.' in x else int(x) for x in records[i]]) for i in range(1, len(records))]
 
     if module_config['test_mode']:
         if module_config['test_use_test_time']:
@@ -134,11 +139,100 @@ def load_ticker_history_cached(ticker,module_config, connection=None):
 
     return ticker_history
 def clear_ticker_history_cache(module_config):
-    os.system (f" rm -rf {module_config['output_dir']}cached/")
+    os.system (f" rm -rf {module_config['output_dir']}cached/*")
     os.mkdir(f"{module_config['output_dir']}cached/")
 def clear_ticker_history_cache_entry(ticker, module_config):
     os.system(f"rm {module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")
     # os.mkdir(f"{module_config['output_dir']}cached/")
+
+def dump_ticker_cache_entries(kwarg):
+    '''
+    Ok going to try something different here so we can be multi threaded
+    pass in a dict with the data we need to run as a single process
+    :param kwarg:
+    :return:
+    '''
+
+    #ok so first things first let's load the db connection
+    connection = obtain_db_connection(kwarg['module_config'])
+    try:
+        for ticker in kwarg['tickers']:
+            dump_ticker_cache_entry(connection, ticker, kwarg['module_config'])
+            print(f"Dumped ticker cache for {kwarg['tickers'].index(ticker)+1}/{len(kwarg['tickers'])}")
+
+        connection.close()
+    except Exception as e:
+        connection.close()
+        print(f"Cannot dump ticker cache for {len(kwarg['tickers'])} tickers: {traceback.format_exc()}" )
+        raise e
+
+
+
+def dump_ticker_cache_entry(connection, ticker, module_config):
+    records = execute_query(connection,f"select open, close, high, low, volume, timestamp from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp desc limit 1000", verbose=False)
+    # reversed(records)
+    records = [records[0]]+[x for x in reversed(records[1:])]
+    ticker_history = [TickerHistory(*[float(x) if '.' in x else int(x) for x in records[i]]) for i in range(1, len(records))]
+    write_ticker_history_cached(ticker, ticker_history, module_config)
+def dump_ticker_cache(module_config):
+    # load_module_config()
+    '''
+    :param module_config:
+    :return:
+    '''
+    connection=obtain_db_connection(module_config)
+    try:
+        if not module_config['test_mode'] or (module_config['test_mode'] and not module_config['test_use_input_tickers']):
+
+            if module_config['test_mode']:
+                if module_config['test_use_test_population']:
+                    # tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
+                    _tickers = [x[0] for x in execute_query(connection,"select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:module_config['test_population_size']]]
+                else:
+                    _tickers = [x[0] for x in execute_query(connection,"select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+                # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+                # tickers
+            else:
+                if module_config['test_use_input_tickers']:
+                    _tickers = module_config['tickers']
+                else:
+                    _tickers = [x[0] for x in execute_query(connection,"select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+                    # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+        else:
+            _tickers = module_config['tickers']
+        connection.close()
+    except Exception as e:
+        connection.close()
+        print(f"Cannot dump ticker cache : {traceback.format_exc()}" )
+        raise e
+    # for
+
+
+    _keys = [x for x in _tickers]
+    # n = int(module_config['num_processes']/12)+1
+    n = int(len(_tickers)/module_config['num_processes'])+1
+    loads = [{"tickers":_keys[i:i + n],"module_config":module_config} for i in range(0, len(_keys), n)]
+    # for load in loads:
+    #     load.insert(0, data[0])
+    # for load in loads:
+    #     print(f"Load size: {len(load)}")
+    # return
+    processes = {}
+    for load in loads:
+        # p = multiprocessing.Process(target=process_function, args=(load,))
+        p = multiprocessing.Process(target=dump_ticker_cache_entries, args=(load,))
+        p.start()
+
+        processes[str(p.pid)] = p
+    # pids = [x for x in processes.keys()]
+    while any(processes[p].is_alive() for p in processes.keys()):
+        # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
+        process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
+        print(f"The following child processes are still running: {process_str}")
+        time.sleep(10)
+
+    #ok so the idea with this one is that we dump a year worth of data to the cache
+    pass
 def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False, connection=None):
     # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
     # limit = 50000
@@ -148,7 +242,7 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
         module_config['og_ts_multiplier'] = module_config['timespan_multiplier']
         # module_config['timespan_multiplier'] = multiplier
     if cached:
-        return load_ticker_history_cached(ticker, module_config)
+        return load_ticker_history_db(ticker, module_config)
     else:
         if os.path.exists(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv"):
             clear_ticker_history_cache_entry(ticker,module_config)
@@ -302,7 +396,7 @@ def load_options_history_raw(contract, ticker_history,client, multiplier = 1, ti
         module_config['og_ts_multiplier'] = module_config['timespan_multiplier']
         # module_config['timespan_multiplier'] = multiplier
     # if cached:
-    #     return load_ticker_history_cached(contract, module_config)
+    #     return load_ticker_history_db(contract, module_config)
     # if os.path.exists(f"{module_config['output_dir']}cached/{contract}{module_config['timespan_multiplier']}{module_config['timespan']}.csv"):
     #     clear_ticker_history_cache_entry(contract,module_config)
     history_data =  []

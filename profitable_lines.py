@@ -10,16 +10,18 @@ from statistics import mean
 from tickers import load_ticker_symbol_by_id, load_ticker_history_by_id
 from functions import execute_query, execute_update, timestamp_to_datetime, human_readable_datetime, \
     calculate_percentage
-from history import load_ticker_history_cached
+from history import load_ticker_history_db
 from shape import compare_tickers_at_index
 
 
 def load_profitable_line_matrix(connection,  module_config):
     #load the profitable line matrix
     execute_update(connection, f"SET SESSION group_concat_max_len = 100000000",auto_commit=True)
-    rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name, group_concat(concat(th.ticker_id,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl, (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where  plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
+    rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name,count(distinct plh.tickerhistory_id) matches ,group_concat(concat(th.ticker_id,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl, (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where  plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
     results = {}
     for i in range(1, len(rows)):
+        if int(rows[i][rows[0].index('line_type_name')])  < 100: #basically skip any that we've found that aren't really relevant yet
+            continue
         try:
             results[rows[i][rows[0].index('line_type_name')]] = {
                 "profit": int(float(rows[i][rows[0].index('profit_percentage')])),
@@ -76,7 +78,7 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
     :param read_only:
     :return:
     '''
-    # /find_ticker_profitable_lines(ticker, load_ticker_history_cached(ticker, module_config, connection=connection), module_config)
+    # /find_ticker_profitable_lines(ticker, load_ticker_history_db(ticker, module_config, connection=connection), module_config)
     pass
     ticker_profitable_lines = find_ticker_profitable_lines(ticker, ticker_history,module_config)
     profitable_line_matrix = load_profitable_line_matrix(connection, module_config)
@@ -102,7 +104,7 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
                 raise Exception
             if compare_ticker not in loaded_histories:
 
-                loaded_histories[compare_ticker]=load_ticker_history_cached(compare_ticker, module_config, connection=connection)
+                loaded_histories[compare_ticker]=load_ticker_history_db(compare_ticker, module_config, connection=connection)
             #ok so now we need to load the ticker history entry at the matching id
             history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],compare_ticker, module_config)
             compare_index = next((i for i, item in enumerate(loaded_histories[compare_ticker]) if item.timestamp == history_entry.timestamp), -1)

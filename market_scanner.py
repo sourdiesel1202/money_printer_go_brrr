@@ -23,7 +23,7 @@ from indicators import determine_rsi_alert_type, determine_macd_alert_type,deter
 from indicators import  load_death_cross, load_golden_cross, determine_death_cross_alert_type,determine_golden_cross_alert_type, did_golden_cross_alert, did_death_cross_alert
 from indicators import load_support_resistance, is_trading_in_sr_band, determine_sr_direction
 from history import load_ticker_history_raw, load_ticker_history_pd_frame, load_ticker_history_csv, \
-    clear_ticker_history_cache, load_ticker_history_cached
+    clear_ticker_history_cache, load_ticker_history_db
 from functions import load_module_config, read_csv, write_csv, combine_csvs, get_today, process_list_concurrently
 from enums import  PositionType
 from options import load_tickers_option_data
@@ -177,7 +177,7 @@ def process_tickers(tickers):
             if module_config['logging']:
                 print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
             # ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=365), today, 10000, module_config)
-            ticker_history = load_ticker_history_cached(ticker, module_config)
+            ticker_history = load_ticker_history_db(ticker, module_config)
             test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
             if ticker_history[-1].volume < module_config['volume_limit'] or ticker_history[-1].close < module_config['price_limit']:
                 # if module_  config['logging']:
@@ -327,21 +327,21 @@ def load_option_data(results, module_config):
     for i in range(1, len(combined)):
         # combined[i].insert(combined[0].index('short_validation'), 'suggested_put')
         ticker = combined[i][combined[0].index('symbol')].split("'>")[1].split("</")[0].strip()
-        short_options = analyze_option_data(PositionType.SHORT,ticker,load_ticker_history_cached(ticker,module_config), module_config)
+        short_options = analyze_option_data(PositionType.SHORT,ticker,load_ticker_history_db(ticker,module_config), module_config)
         if len(short_options) == 0:
             short_option = {'ticker':''}
         else:
             short_option = short_options[0]
 
         long_options = analyze_option_data(PositionType.LONG, ticker,
-                                            load_ticker_history_cached(ticker, module_config), module_config)
+                                            load_ticker_history_db(ticker, module_config), module_config)
         if len(long_options) == 0:
             long_option = {'ticker': ticker}
         else:
             long_option = long_options[0]
         put_link = urllib.parse.quote(f"{module_config['timespan_multiplier']}{module_config['timespan']}{short_option['ticker']}.html",safe='')
         call_link = urllib.parse.quote(f"{module_config['timespan_multiplier']}{module_config['timespan']}{long_option['ticker']}.html",safe='')
-        # long_option = analyze_option_data(PositionType.LONG,ticker,load_ticker_history_cached(ticker,module_config), module_config)[0]
+        # long_option = analyze_option_data(PositionType.LONG,ticker,load_ticker_history_db(ticker,module_config), module_config)[0]
         short_option_str = f"<a href='{put_link}'>{short_option['ticker']}</a>"
         long_option_str = f"<a href='{call_link}'>{long_option['ticker']}</a>"
         combined[i][combined[0].index('suggested_put')]= short_option_str
@@ -370,7 +370,7 @@ def run_backtests(results, module_config):
                     ticker = combined[i][combined[0].index('symbol')].split("'>")[1].split("</")[0].strip()
                     print(f"Ticker {combined[i][combined[0].index('symbol')]} alerted {','.join(combined[i][combined[0].index('alerts_triggered')].split(','))}, running backtest for {module_config['backtest_days']} days")
                     backtest_ticker_concurrently(combined[i][combined[0].index('alerts_triggered')].split(','), ticker,
-                                                 load_ticker_history_cached(ticker, module_config), module_config)
+                                                 load_ticker_history_db(ticker, module_config), module_config)
                     backtest_results = analyze_backtest_results(load_backtest_results(ticker, module_config))
                     for _backtest_key in analyzed_backtest_keys:
                     # for ii in range(combined[0].index('backtested') + 1, len(combined[0])):
