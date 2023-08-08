@@ -35,7 +35,7 @@ def load_ticker_histories(_tickers):
             print(f"Attempting to load data for {_tickers.index(ticker)}/{len(_tickers)}")
             try:
                 # if not module_config['test_mode']:
-                _ = load_ticker_history_raw(ticker['symbol'],  client, module_config['timespan_multiplier'], module_config['timespan'], get_today(module_config, minus_days=365*2), get_today(module_config, minus_days=2), 50000, module_config, connection=connection)
+                _ = load_ticker_history_raw(ticker['symbol'],  client, module_config['timespan_multiplier'], module_config['timespan'], get_today(module_config, minus_days=180), get_today(module_config, minus_days=2), 50000, module_config, connection=connection)
                 # else:
                 # _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), 11, limit=50000, module_config=_module_config)
                 successes.append(ticker)

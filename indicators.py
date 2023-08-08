@@ -318,24 +318,15 @@ def did_profitable_lines_alert(indicator_data,ticker,ticker_history, module_conf
     matches = {}
     for line, line_data in indicator_data.items():
         positive_line_data_profit = line_data['profit'] >= 0
-        # so here we load the ticker histroy
-        # if positive_profit != positive_line_data_profit:
-        #     print(
-        #         f"Skipping Historic Profit Line of {line_data['profit']}%, the trend is in the opposite direction of profit {profit}%")
-        #     continue
         try:
-            # compare_ticker = load_ticker_symbol_by_id(connection, [x for x in line_data['matches'][0].values()][0],
-            #                                           module_config)
             compare_ticker = line_data['symbol']
         except:
             traceback.print_exc()
             print()
             raise Exception
-        print(f"Comparing {ticker} to {line} on {compare_ticker} at {human_readable_datetime(timestamp_to_datetime(line_data['timestamp']))}")
+        # print(f"Comparing {ticker} to {line} on {compare_ticker} at {human_readable_datetime(timestamp_to_datetime(line_data['timestamp']))}")
         loaded_histories ={compare_ticker: load_ticker_history_cached(compare_ticker, module_config)}
 
-        # history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],
-        #                                           compare_ticker, module_config)
         history_entry = [x for x in loaded_histories[compare_ticker] if x.timestamp == int(line_data['timestamp'])][0]
         compare_index = next((i for i, item in enumerate(loaded_histories[compare_ticker]) if item.timestamp == history_entry.timestamp),-1)
 
@@ -344,11 +335,11 @@ def did_profitable_lines_alert(indicator_data,ticker,ticker_history, module_conf
                 match_likelihood = compare_tickers_at_index(compare_index, ticker, ticker_history,compare_ticker, loaded_histories[compare_ticker],module_config)
 
                 matches[match_likelihood] = line
-                print(f"We actually found  a match")
+                # print(f"We actually found  a match: {ticker}:{ticker_history[-1].dt}=>{compare_ticker}:{loaded_histories[compare_ticker][:compare_index+1][-1].dt}: {line}:{line_data['profit']}%:{line_data['forward_range']} bars: {match_likelihood}")
                 # profits[match_likelihood]= line_data['profit']
 
         except:
-            # traceback.print_exc()
+            traceback.print_exc()
             # print(f"Cannot calculate shape similarity between {ticker} (size: {len(ticker_history[0:indexes[0]])}) and {compare_ticker} (size: {len(loaded_histories[compare_ticker])}), not enough historical bars ")
             continue
 
@@ -528,7 +519,7 @@ def determine_profitable_lines_alert_type(indicator_data,ticker,ticker_history, 
             if len(ticker_history) >= module_config['line_profit_backward_range'] and len(loaded_histories[compare_ticker]) >= module_config['line_profit_backward_range']:
                 match_likelihood = compare_tickers_at_index(compare_index, ticker, ticker_history,compare_ticker, loaded_histories[compare_ticker],module_config)
                 matches[match_likelihood] = line
-                print(f"We actually found  a match")
+                # print(f"We actually found  a match")
                 # profits[match_likelihood]= line_data['profit']
 
         except:

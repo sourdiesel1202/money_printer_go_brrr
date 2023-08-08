@@ -1,10 +1,12 @@
+import math
 import time
 import traceback
 
-from shapesimilarity import shape_similarity
+from shapely import LineString, frechet_distance
+from shapesimilarity import shape_similarity, procrustes_normalize_curve, curve_length
 # import matplotlib.pyplot as plt
 import numpy as np
-from statistics import mean
+# from statistics import mean
 
 # from db_functions import load_ticker_symbol_by_id, load_ticker_history_by_id
 # from db_functions import load_profitable_line_matrix
@@ -15,7 +17,8 @@ from functions import timestamp_to_datetime, human_readable_datetime, execute_qu
 
 
 def compare_tickers(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config):
-    return determine_line_similarity(**format_ticker_data(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config))
+    return determine_line_similarity(ticker_history_a,ticker_history_b,module_config)
+    # return determine_line_similarity(**format_ticker_data(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config))
 
 def compare_tickers_at_index(index, ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config):
     #ok just so we're clear on the idea here
@@ -24,17 +27,6 @@ def compare_tickers_at_index(index, ticker_a, ticker_history_a,ticker_b, ticker_
     _module_config = module_config
     _module_config['shape_bars'] = module_config['line_profit_backward_range']
     return compare_tickers(ticker_a, ticker_history_a, ticker_b, ticker_history_b[:index+1], module_config)
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -59,25 +51,49 @@ def format_ticker_data(ticker_a, ticker_history_a,ticker_b, ticker_history_b, mo
             if ticker_history_a[-i].timestamp == ticker_history_b[-i].timestamp:
                 matches['ticker_a'].append(ticker_history_a[-i].close)
                 matches['ticker_b'].append(ticker_history_b[-i].close)
-                matches['timestamps'].append(ticker_history_b[-i].timestamp)
+                matches['timestamps'].append(int(ticker_history_b[-i].timestamp))
             else:
                 matches['ticker_a'].append(ticker_history_a[-i].close)
                 matches['ticker_b'].append(ticker_history_b[-i].close)
-                matches['timestamps'].append(ticker_history_a[-i].timestamp)
+                matches['timestamps'].append(int(ticker_history_a[-i].timestamp))
 
     return  matches
-def determine_line_similarity(ticker_a=[], ticker_b=[], timestamps=[]):
+def determine_line_similarity(ticker_history_a,ticker_history_b, module_config) :
 
 
-    # similarity =
-    try:
-        xs = [i for i in range(0, len(timestamps))]
-        shape1 = np.column_stack((np.array(xs), np.array(ticker_a)))
-        shape2 = np.column_stack((np.array(xs), np.array(ticker_b)))
-        return shape_similarity(shape1, shape2,checkRotation=False)
-    except Exception as e:
-        raise e
+    # # similarity =
+    # try:
+    #     xs = [i for i in range(0, len(timestamps))]
+    #     shape1 = np.column_stack((np.array(xs), np.array(ticker_a)))
+    #     shape2 = np.column_stack((np.array(xs), np.array(ticker_b)))
+    #     return shape_similarity(shape1, shape2,checkRotation=1)
+    # except Exception as e:
+    #     raise e
     # pass
 
+    # x = np.linspace(module_config['shape_bars'], 0, num=module_config['shape_bars'])
+    # y1 = 2 * x ** 2 + 1
+    # y2 = 2 * x ** 2 + 2
 
+    # x = np.linspace(1, -1, num=module_config['shape_bars'])
+    # shape1 = np.column_stack((x, [x.close for x in reversed(ticker_history_a[module_config['shape_bars'] * -1:])]))
+    # shape2 = np.column_stack((x, [x.close for x in reversed(ticker_history_b[module_config['shape_bars'] * -1:])]))
+    #
+    # return shape_similarity(shape1, shape2,checkRotation=False)
+    y1s = [x.close for x in ticker_history_a[module_config['shape_bars'] * -1:]]
+    xs = [i for i in range(0, module_config['shape_bars'])]
+    y2s = [x.close for x in ticker_history_b[module_config['shape_bars'] * -1:]]
+    ticker_a_line = LineString([[xs[i], y1s[i]] for i in range(0, len(xs))])
+    ticker_b_line = LineString([[xs[i], y2s[i]] for i in range(0, len(xs))])
+    f = frechet_distance(ticker_a_line, ticker_b_line)
+    x = np.linspace(1, -1, num=module_config['shape_bars'])
+    shape1 = np.column_stack((x, [x.close for x in reversed(ticker_history_a[module_config['shape_bars'] * -1:])]))
+    shape2 = np.column_stack((x, [x.close for x in reversed(ticker_history_b[module_config['shape_bars'] * -1:])]))
+    procrustes_normalized_curve1 = procrustes_normalize_curve(shape1)
+    procrustes_normalized_curve2 = procrustes_normalize_curve(shape2)
+    geo_avg_curve_len = math.sqrt(
+        curve_length(procrustes_normalized_curve1) *
+        curve_length(procrustes_normalized_curve2)
+    )
+    return max(1 - f / (geo_avg_curve_len / math.sqrt(2)), 0)
 

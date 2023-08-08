@@ -3,6 +3,7 @@
 import urllib.parse
 
 from db_functions import  process_ticker_history, load_mpb_report
+from profitable_lines import dump_profitable_line_cache
 from tickers import load_ticker_last_updated
 from functions import obtain_db_connection, execute_query, timestamp_to_datetime
 from multiprocessing import freeze_support
@@ -357,6 +358,7 @@ if __name__ == '__main__':
     # did_dmi_alert(load_dmi_adx("GE", client, history_entries, module_config), history_entries, "GE", module_config)
     ##find data
     connection = obtain_db_connection(module_config)
+    dump_profitable_line_cache(connection, module_config)
     if module_config['trading_hours_only']:
         if datetime.datetime.now().hour < 17 and datetime.datetime.now().hour > 8:
             try:

@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import traceback
@@ -13,12 +14,25 @@ from functions import execute_query, execute_update, timestamp_to_datetime, huma
 from history import load_ticker_history_db
 from shape import compare_tickers_at_index
 
+def dump_profitable_line_cache(connection, module_config):
+    # write_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv",convert_ticker_history_to_csv(ticker, ticker_history))
+    line_matrix = load_profitable_line_matrix(connection, module_config, ignore_cache=False)
+    with open(f"{module_config['output_dir']}cached/profitable_line_cache.json", "w+") as f:
+        f.write(json.dumps(line_matrix))
 
-def load_profitable_line_matrix(connection,  module_config):
+def load_profitable_line_matrix(connection,  module_config, ignore_cache=False):
     #load the profitable line matrix
+    if not ignore_cache:
+        if os.path.exists(f"{module_config['output_dir']}cached/profitable_line_cache.json"):
+            # print(f"Loading profitable line matrix from cache")
+            with open(f"{module_config['output_dir']}cached/profitable_line_cache.json", "r") as f:
+                return json.loads(f.read())
+
     execute_update(connection, f"SET SESSION group_concat_max_len = 100000000",auto_commit=True)
     # rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name,count(distinct plh.tickerhistory_id) matches ,group_concat(concat(th.ticker_id,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl, (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where  plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
-    rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name,count(distinct plh.tickerhistory_id) matches ,group_concat(concat(th.ticker_id,':',t.symbol,':',th.timestamp,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl,tickers_ticker t , (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where t.id=th.ticker_id and plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
+    #rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name,count(distinct plh.tickerhistory_id) matches ,group_concat(concat(th.ticker_id,':',t.symbol,':',th.timestamp,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl,tickers_ticker t , (select profitableline_id, max(tickerhistory_id) tickerhistory_id from lines_profitableline_histories  group by profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where t.id=th.ticker_id and plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
+    # remove above cause I think it's fucked
+    rows = execute_query(connection, f"select pl.id, forward_range, backward_range, profit_percentage,plt.id line_type_id,plt.name line_type_name, group_concat(concat(th.ticker_id,':',t.symbol,':',th.timestamp,':',plh.tickerhistory_id) separator ',') ticker_histories from lines_profitableline pl,tickers_ticker t, (select profitableline_id, max(tickerhistory_id) tickerhistory_id from (select phuck.profitableline_id, phuck.tickerhistory_id, th.timestamp from  lines_profitableline_histories phuck, history_tickerhistory th,  (select plh.profitableline_id, max(th.timestamp) most_recent_timestamp from lines_profitableline_histories plh, history_tickerhistory th where th.id=plh.tickerhistory_id group by plh.profitableline_id) fuck where phuck.profitableline_id=fuck.profitableline_id and th.timestamp=fuck.most_recent_timestamp and th.id=phuck.tickerhistory_id) dumb group by dumb.profitableline_id) plh,history_tickerhistory th, lines_profitablelinetype plt  where t.id=th.ticker_id and plt.id =pl.line_type_id and th.id=plh.tickerhistory_id and plh.profitableline_id = pl.id and th.timespan='{module_config['timespan']}' and th.timespan_multiplier='{module_config['timespan_multiplier']}' GROUP by pl.id, forward_range, backward_range, profit_percentage,plt.id,plt.name")
 
     results = {}
     for i in range(1, len(rows)):

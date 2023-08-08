@@ -123,7 +123,7 @@ def load_ticker_history_cached(ticker,module_config):
 
     for entry in read_csv(
             f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv")[1:]:
-        ticker_history.append(TickerHistory(*[float(x) for x in entry]))
+        ticker_history.append(TickerHistory(*[float(x) if '.' in x else int(x) for x in entry]))
 
     return ticker_history
 def load_ticker_history_db(ticker,module_config, connection=None):
