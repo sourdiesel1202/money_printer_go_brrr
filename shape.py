@@ -75,25 +75,29 @@ def determine_line_similarity(ticker_history_a,ticker_history_b, module_config) 
     # y1 = 2 * x ** 2 + 1
     # y2 = 2 * x ** 2 + 2
 
-    # x = np.linspace(1, -1, num=module_config['shape_bars'])
-    # shape1 = np.column_stack((x, [x.close for x in reversed(ticker_history_a[module_config['shape_bars'] * -1:])]))
-    # shape2 = np.column_stack((x, [x.close for x in reversed(ticker_history_b[module_config['shape_bars'] * -1:])]))
-    #
-    # return shape_similarity(shape1, shape2,checkRotation=False)
-    y1s = [x.close for x in ticker_history_a[module_config['shape_bars'] * -1:]]
-    xs = [i for i in range(0, module_config['shape_bars'])]
-    y2s = [x.close for x in ticker_history_b[module_config['shape_bars'] * -1:]]
-    ticker_a_line = LineString([[xs[i], y1s[i]] for i in range(0, len(xs))])
-    ticker_b_line = LineString([[xs[i], y2s[i]] for i in range(0, len(xs))])
-    f = frechet_distance(ticker_a_line, ticker_b_line)
     x = np.linspace(1, -1, num=module_config['shape_bars'])
     shape1 = np.column_stack((x, [x.close for x in reversed(ticker_history_a[module_config['shape_bars'] * -1:])]))
     shape2 = np.column_stack((x, [x.close for x in reversed(ticker_history_b[module_config['shape_bars'] * -1:])]))
-    procrustes_normalized_curve1 = procrustes_normalize_curve(shape1)
-    procrustes_normalized_curve2 = procrustes_normalize_curve(shape2)
-    geo_avg_curve_len = math.sqrt(
-        curve_length(procrustes_normalized_curve1) *
-        curve_length(procrustes_normalized_curve2)
-    )
-    return max(1 - f / (geo_avg_curve_len / math.sqrt(2)), 0)
+    #
+    return shape_similarity(shape1, shape2,checkRotation=True)
+    # y1s = [x.close for x in ticker_history_a[module_config['shape_bars'] * -1:]]
+    # xs = [i for i in range(0, module_config['shape_bars'])]
+    # y2s = [x.close for x in ticker_history_b[module_config['shape_bars'] * -1:]]
+    # ticker_a_line = LineString([[xs[i], y1s[i]] for i in range(0, len(xs))])
+    # ticker_b_line = LineString([[xs[i], y2s[i]] for i in range(0, len(xs))])
+    # f = frechet_distance(ticker_a_line, ticker_b_line)
+    # x = np.linspace(1, -1, num=module_config['shape_bars'])
+    # shape1 = np.column_stack((x, [x.close for x in reversed(ticker_history_a[module_config['shape_bars'] * -1:])]))
+    # shape2 = np.column_stack((x, [x.close for x in reversed(ticker_history_b[module_config['shape_bars'] * -1:])]))
+    # procrustes_normalized_curve1 = procrustes_normalize_curve(shape1)
+    # procrustes_normalized_curve2 = procrustes_normalize_curve(shape2)
+    # geo_avg_curve_len = math.sqrt(
+    #     curve_length(procrustes_normalized_curve1) *
+    #     curve_length(procrustes_normalized_curve2)
+    # )
+    # return max(1 - f / (geo_avg_curve_len / math.sqrt(2)), 0)
 
+# Testing $AUGX:2023-06-27 09:30:00:DB Value : 2023-06-27 09:30:00-04:00 => $AMPS:2023-06-26 11:30:00:DB Value: 2023-06-26 11:30:00-04:00: 0.9322
+# Testing $AUGX:2023-06-27 09:30:00:DB Value : 2023-06-27 09:30:00-04:00 => $EAT:2023-05-31 12:30:00:DB Value: 2023-05-31 12:30:00-04:00: 0.5298
+# Testing $AUGX:2023-06-27 09:30:00:DB Value : 2023-06-27 09:30:00-04:00 => $MSGM:2023-05-10 15:30:00:DB Value: 2023-05-10 15:30:00-04:00: 0.94
+# Testing $AUGX:2023-06-27 09:30:00:DB Value : 2023-06-27 09:30:00-04:00 => $KRT:2023-05-10 14:30:00:DB Value: 2023-05-10 14:30:00-04:00: 0.8058

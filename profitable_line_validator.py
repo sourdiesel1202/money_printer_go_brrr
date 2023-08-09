@@ -7,7 +7,7 @@ import polygon, datetime
 
 from db_functions import load_nyse_tickers
 # from db_functions import write_ticker_profitable_lines,load_profitable_line_matrix
-from history import load_ticker_history_raw, load_ticker_history_db, load_ticker_history_cached
+from history import load_ticker_history_raw, load_ticker_history_db, load_ticker_history_cached, TickerHistory
 # from validation import validate_ticker
 from functions import load_module_config, get_today, obtain_db_connection, process_list_concurrently, execute_query
 # from indicators import did_profitable_lines_alert, determine_profitable_lines_alert_type, load_profitable_lines
@@ -16,8 +16,60 @@ from shape import compare_tickers
 from shape import determine_line_similarity
 
 
-def validate_profitable_line(line_data):
-    pass
+def adjust_ticker_history_by_percentage(ticker_history,percentage, module_config):
+    th = []
+    for i in range(0, len(ticker_history)):
+        pass
+        close_one_percent = ticker_history[i].close/100
+        open_one_percent = ticker_history[i].open/100
+        high_one_percent = ticker_history[i].high/100
+        low_one_percent = ticker_history[i].low/100
+        # float(percentage * one_percent)
+        # def __init__(self, open, close, high, low, volume, timestamp):
+        #
+        th.append(TickerHistory(round(float(percentage*open_one_percent),2),round(float(percentage*close_one_percent),2),round(float(percentage*high_one_percent),2),round(float(percentage*low_one_percent),2), ticker_history[i].volume, ticker_history[i].timestamp))
+    return th
+def normalize_prices(ticker_history_a, ticker_history_b, module_config):
+    # ok first we detemine the larger of the two
+    if ticker_history_a[-1].close > ticker_history_b[-1].close:
+        # we need to figure out what percentage of a  is b
+        percentage = int(float(ticker_history_a[-1].close / ticker_history_b[-1].close)*100)
+        one_percent = ticker_history_b[-1].close/100
+        return ticker_history_a,adjust_ticker_history_by_percentage(ticker_history_b, percentage, module_config)
+        #ok so first
+        pass
+    else:
+        percentage = int(float(ticker_history_b[-1].close / ticker_history_a[-1].close)*100)
+        # one_percent = ticker_history_a[-1].close/100
+        return adjust_ticker_history_by_percentage(ticker_history_a, percentage, module_config),ticker_history_b
+
+
+
+def validate_profitable_lines(line_data):
+    module_config = load_module_config('profitable_line_scanner_db')
+    for i in range(1, len(line_data)):
+        ticker_data_a = line_data[i]
+        ticker_history_a = load_ticker_history_cached(ticker_data_a[line_data[0].index('symbol')], module_config)
+        a_index = next((i for i, item in enumerate(ticker_history_a) if item.timestamp == int(ticker_data_a[line_data[0].index('timestamp')])),-1)
+        # ticker_history_b[:index + 1]
+        ticker_history_a = ticker_history_a[:a_index+1]
+        ticker_history_a = ticker_history_a[-1*(int(line_data[i][line_data[0].index('backward_range')]) + 1):]
+        # print(f"Testing ${ticker_data_a[line_data[0].index('symbol')]}:{ticker_data_a[line_data[0].index('hr_date')]}:Compare To: {ticker_history_a[-1]}")
+        for ii in range(1, len(line_data)):
+            ticker_data_b = line_data[ii]
+            if ticker_data_b[line_data[0].index('tickerhistory_id')] == ticker_data_a[line_data[0].index('tickerhistory_id')]:
+
+                continue
+            ticker_history_b = load_ticker_history_cached(ticker_data_b[line_data[0].index('symbol')], module_config)
+            b_index = next((i for i, item in enumerate(ticker_history_b) if item.timestamp == int(ticker_data_b[line_data[0].index('timestamp')])), -1)
+            # ticker_history_b[:index + 1]
+            ticker_history_b = ticker_history_b[:b_index + 1]
+            ticker_history_b = ticker_history_b[-1*(int(line_data[ii][line_data[0].index('backward_range')]) + 1):]
+            ticker_history_a, ticker_history_b = normalize_prices(ticker_history_a, ticker_history_b, module_config)
+            if len(ticker_history_a) < int(line_data[i][line_data[0].index('backward_range')]) or len(ticker_history_b) <int(line_data[ii][line_data[0].index('backward_range')]):
+                continue
+            print(f"Testing ${ticker_data_a[line_data[0].index('symbol')]}:{ticker_data_a[line_data[0].index('hr_date')]}:DB Value : {ticker_history_a[-1].dt} => ${ticker_data_b[line_data[0].index('symbol')]}:{ticker_data_b[line_data[0].index('hr_date')]}:DB Value: {ticker_history_b[-1].dt}: {determine_line_similarity(ticker_history_a, ticker_history_b, module_config)}")
+
 def load_profitable_line_records(connection):
     # sql =
     return execute_query(connection, f"select pl.*, plt.name from lines_profitableline pl, lines_profitablelinetype plt where plt.id=pl.line_type_id")
@@ -31,12 +83,18 @@ if __name__ == '__main__':
     try:
         for i in range(1, len(profitable_lines)):
             line_id = profitable_lines[i][profitable_lines[0].index('id')]
-            line_entries =execute_query(connection, f"select * from (select pl.*, t.symbol, plh.tickerhistory_id, th.timestamp, from_unixtime(th.timestamp/1000) hr_date from lines_profitableline_histories plh, lines_profitableline pl, tickers_ticker t, history_tickerhistory th, lines_profitablelinetype plt where pl.id=plh.profitableline_id and  th.ticker_id =t.id and plh.tickerhistory_id=th.id and plt.id=pl.line_type_id and plt.id='{line_id}') line_aggs order by line_aggs.timestamp desc")
+            line_entries =execute_query(connection, f"select * from (select pl.*, t.symbol, plh.tickerhistory_id, th.timestamp, from_unixtime(th.timestamp/1000) hr_date from lines_profitableline_histories plh, lines_profitableline pl, tickers_ticker t, history_tickerhistory th, lines_profitablelinetype plt where pl.id=plh.profitableline_id and  th.ticker_id =t.id and plh.tickerhistory_id=th.id and plt.id=pl.line_type_id and pl.id='{line_id}') line_aggs order by line_aggs.timestamp desc")
+            header  = line_entries[0]
+            del line_entries[0]
             _keys = [x for x in line_entries]
-            n = module_config['num_processes']
+            n = int(len(_keys)/module_config['num_processes'])+1
             loads = [_keys[i:i + n] for i in range(0, len(_keys), n)]
+            for i in range(0, len(loads)):
+                loads[i] = [header]+loads[i]
             pass
+            validate_profitable_lines(loads[0])
     except:
+        traceback.print_exc()
         pass
 
     connection.close()
