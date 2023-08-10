@@ -11,42 +11,18 @@ from history import load_ticker_history_raw, load_ticker_history_db, load_ticker
 # from validation import validate_ticker
 from functions import load_module_config, get_today, obtain_db_connection, process_list_concurrently, execute_query
 # from indicators import did_profitable_lines_alert, determine_profitable_lines_alert_type, load_profitable_lines
-from profitable_lines import compare_profitable_ticker_lines_to_market, load_profitable_line_matrix, dump_profitable_line_cache
+from profitable_lines import compare_profitable_ticker_lines_to_market, load_profitable_line_matrix, \
+    dump_profitable_line_cache, normalize_prices
 from shape import compare_tickers
 from shape import determine_line_similarity
 
 
-def adjust_ticker_history_by_percentage(ticker_history,percentage, module_config):
-    th = []
-    for i in range(0, len(ticker_history)):
-        pass
-        close_one_percent = ticker_history[i].close/100
-        open_one_percent = ticker_history[i].open/100
-        high_one_percent = ticker_history[i].high/100
-        low_one_percent = ticker_history[i].low/100
-        # float(percentage * one_percent)
-        # def __init__(self, open, close, high, low, volume, timestamp):
-        #
-        th.append(TickerHistory(round(float(percentage*open_one_percent),2),round(float(percentage*close_one_percent),2),round(float(percentage*high_one_percent),2),round(float(percentage*low_one_percent),2), ticker_history[i].volume, ticker_history[i].timestamp))
-    return th
-def normalize_prices(ticker_history_a, ticker_history_b, module_config):
-    # ok first we detemine the larger of the two
-    if ticker_history_a[-1].close > ticker_history_b[-1].close:
-        # we need to figure out what percentage of a  is b
-        percentage = int(float(ticker_history_a[-1].close / ticker_history_b[-1].close)*100)
-        one_percent = ticker_history_b[-1].close/100
-        return ticker_history_a,adjust_ticker_history_by_percentage(ticker_history_b, percentage, module_config)
-        #ok so first
-        pass
-    else:
-        percentage = int(float(ticker_history_b[-1].close / ticker_history_a[-1].close)*100)
-        # one_percent = ticker_history_a[-1].close/100
-        return adjust_ticker_history_by_percentage(ticker_history_a, percentage, module_config),ticker_history_b
 
 
 
 def validate_profitable_lines(line_data):
     module_config = load_module_config('profitable_line_scanner_db')
+    errors= 0
     for i in range(1, len(line_data)):
         ticker_data_a = line_data[i]
         ticker_history_a = load_ticker_history_cached(ticker_data_a[line_data[0].index('symbol')], module_config)
@@ -65,11 +41,16 @@ def validate_profitable_lines(line_data):
             # ticker_history_b[:index + 1]
             ticker_history_b = ticker_history_b[:b_index + 1]
             ticker_history_b = ticker_history_b[-1*(int(line_data[ii][line_data[0].index('backward_range')]) + 1):]
+
             ticker_history_a, ticker_history_b = normalize_prices(ticker_history_a, ticker_history_b, module_config)
             if len(ticker_history_a) < int(line_data[i][line_data[0].index('backward_range')]) or len(ticker_history_b) <int(line_data[ii][line_data[0].index('backward_range')]):
                 continue
-            print(f"Testing ${ticker_data_a[line_data[0].index('symbol')]}:{ticker_data_a[line_data[0].index('hr_date')]}:DB Value : {ticker_history_a[-1].dt} => ${ticker_data_b[line_data[0].index('symbol')]}:{ticker_data_b[line_data[0].index('hr_date')]}:DB Value: {ticker_history_b[-1].dt}: {determine_line_similarity(ticker_history_a, ticker_history_b, module_config)}")
-
+            module_config['shape_bars']=int(line_data[ii][line_data[0].index('backward_range')])
+            try:
+                print(f"Testing {i}/{len(line_data)} ${ticker_data_a[line_data[0].index('symbol')]}:{ticker_data_a[line_data[0].index('hr_date')]}:DB Value : {ticker_history_a[-1].dt} => {ii}/{len(line_data)}  ${ticker_data_b[line_data[0].index('symbol')]}:{ticker_data_b[line_data[0].index('hr_date')]}:DB Value: {ticker_history_b[-1].dt}: {determine_line_similarity(ticker_history_b, ticker_history_a, module_config)}")
+            except:
+                errors = errors +1
+                print(f"Testing {i}/{len(line_data)} ${ticker_data_a[line_data[0].index('symbol')]}:{ticker_data_a[line_data[0].index('hr_date')]}:DB Value : {ticker_history_a[-1].dt} => {ii}/{len(line_data)}  ${ticker_data_b[line_data[0].index('symbol')]}:{ticker_data_b[line_data[0].index('hr_date')]}:DB Value: {ticker_history_b[-1].dt}: Error Occurred: Total Errors {errors}/{len(line_data)}")
 def load_profitable_line_records(connection):
     # sql =
     return execute_query(connection, f"select pl.*, plt.name from lines_profitableline pl, lines_profitablelinetype plt where plt.id=pl.line_type_id")

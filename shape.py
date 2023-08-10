@@ -76,10 +76,14 @@ def determine_line_similarity(ticker_history_a,ticker_history_b, module_config) 
     # y2 = 2 * x ** 2 + 2
 
     x = np.linspace(1, -1, num=module_config['shape_bars'])
-    shape1 = np.column_stack((x, [x.close for x in reversed(ticker_history_a[module_config['shape_bars'] * -1:])]))
-    shape2 = np.column_stack((x, [x.close for x in reversed(ticker_history_b[module_config['shape_bars'] * -1:])]))
+    shape1 = np.column_stack((x, [x.close for x in ticker_history_a[module_config['shape_bars'] * -1:]]))
+    shape2 = np.column_stack((x, [x.close for x in ticker_history_b[module_config['shape_bars'] * -1:]]))
     #
-    return shape_similarity(shape1, shape2,checkRotation=True)
+    try:
+        return shape_similarity(shape1, shape2,checkRotation=False)
+    except Exception as e:
+        traceback.print_exc()
+        raise e
     # y1s = [x.close for x in ticker_history_a[module_config['shape_bars'] * -1:]]
     # xs = [i for i in range(0, module_config['shape_bars'])]
     # y2s = [x.close for x in ticker_history_b[module_config['shape_bars'] * -1:]]
@@ -87,8 +91,8 @@ def determine_line_similarity(ticker_history_a,ticker_history_b, module_config) 
     # ticker_b_line = LineString([[xs[i], y2s[i]] for i in range(0, len(xs))])
     # f = frechet_distance(ticker_a_line, ticker_b_line)
     # x = np.linspace(1, -1, num=module_config['shape_bars'])
-    # shape1 = np.column_stack((x, [x.close for x in reversed(ticker_history_a[module_config['shape_bars'] * -1:])]))
-    # shape2 = np.column_stack((x, [x.close for x in reversed(ticker_history_b[module_config['shape_bars'] * -1:])]))
+    # shape1 = np.column_stack((x, [x.close for x in ticker_history_a[module_config['shape_bars'] * -1:]]))
+    # shape2 = np.column_stack((x, [x.close for x in ticker_history_b[module_config['shape_bars'] * -1:]]))
     # procrustes_normalized_curve1 = procrustes_normalize_curve(shape1)
     # procrustes_normalized_curve2 = procrustes_normalize_curve(shape2)
     # geo_avg_curve_len = math.sqrt(

@@ -7,7 +7,7 @@ import polygon, datetime
 
 from db_functions import load_nyse_tickers
 # from db_functions import write_ticker_profitable_lines,load_profitable_line_matrix
-from history import load_ticker_history_raw, load_ticker_history_db
+from history import load_ticker_history_raw, load_ticker_history_db, load_ticker_history_cached
 # from validation import validate_ticker
 from functions import load_module_config, get_today, obtain_db_connection, process_list_concurrently
 
@@ -48,7 +48,8 @@ if __name__ == '__main__':
     tickers=  ["QBTS"]
 
     # def process_list_concurrently(data, process_function, batch_size):
-    process_list_concurrently(tickers, compare_tickers_lines_to_market, int(len(tickers)/12)+1)
+    # process_list_concurrently(tickers, compare_tickers_lines_to_market, int(len(tickers)/12)+1)
+    find_ticker_profitable_lines(tickers[0], load_ticker_history_cached(tickers[0], module_config), module_config)
     # load_profitable_line_matrix(connection, module_config)
     connection.close()
 

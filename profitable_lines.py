@@ -11,8 +11,9 @@ from statistics import mean
 from tickers import load_ticker_symbol_by_id, load_ticker_history_by_id
 from functions import execute_query, execute_update, timestamp_to_datetime, human_readable_datetime, \
     calculate_percentage
-from history import load_ticker_history_db
-from shape import compare_tickers_at_index
+from history import load_ticker_history_db, TickerHistory
+from shape import compare_tickers_at_index, determine_line_similarity
+
 
 def dump_profitable_line_cache(connection, module_config):
     # write_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv",convert_ticker_history_to_csv(ticker, ticker_history))
@@ -156,6 +157,46 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
             #ok so once we're here, we can calculate the similarity at the index
             #the challenge is finding the index of the ticker history
         pass
+
+def scrub_potential_profitable_lines(ticker, ticker_history,potential_profitable_lines, module_config):
+
+    cleanup_dict= {}
+    for profit_value, indexes in potential_profitable_lines.items():
+        #ok so now that we're here, let's go ahead and process the individual lines
+
+        index_dict = {} #THIS is where things are going to get complicado
+        for i in range(0, len(indexes)):
+            if indexes[i] not in index_dict: #first pass on the indexes to get n
+                index_dict[indexes[i]] ={}
+            for ii in range(0, len(indexes)): #second pass on indexes to get comparison
+                if i == ii:
+                    index_dict[indexes[ii]]=round(1.00,2)
+
+                ticker_history_a, ticker_history_b = normalize_prices(ticker_history[indexes[i]-module_config['line_profit_backward_range']:indexes[i]+1],ticker_history[indexes[ii]-module_config['line_profit_backward_range']:indexes[ii]+1] , module_config)
+                # print(f"Testing {i}/{len(indexes)} ${ticker}:{ticker_history[indexes[i]].dt}:last price ${ticker_history[indexes[i]].close}: => {ii}/{len(indexes)}  ${ticker_history[indexes[ii]].dt}:last price ${ticker_history[indexes[i]].close}: {similarity}")
+                similarity = determine_line_similarity( ticker_history_a, ticker_history_b, module_config)
+                index_dict[indexes[ii]]=round(similarity,2)
+                print(f"Testing {i}/{len(indexes)} ${ticker}:{ticker_history_a[-1].dt}:Control Date : {ticker_history[indexes[i]].dt} => {ii}/{len(indexes)}  ${ticker}:{ticker_history_b[-1].dt}:Control Date: {ticker_history[indexes[ii]].dt}: Similarity: {similarity}")
+            pass
+
+        cleanup_dict[profit_value]=index_dict
+        pass
+    # ok so once we get HERE, let's go ahead and clean our indexes
+    #make this recursive
+    valid = True
+
+    for profit, index_dict in cleanup_dict.items():
+        for index, similarity in index_dict.items():
+            # for tested_index, similarity in results.items():
+            if similarity < module_config['line_similarity_gt']:
+                valid = False
+                #do cleanup
+                if index in potential_profitable_lines[profit]:
+                    potential_profitable_lines[profit].remove(index)
+    if not valid:
+        scrub_potential_profitable_lines(ticker, ticker_history, potential_profitable_lines, module_config)
+    else:
+        return potential_profitable_lines
 def find_ticker_profitable_lines(ticker, ticker_history,  module_config):
     #ok so the idea here is to re-use some of the reverse loookback logic in the backtester to interate through the ticker history
     #to within the line_profit_backward_range to then determine the profitability at the forward range
@@ -166,11 +207,9 @@ def find_ticker_profitable_lines(ticker, ticker_history,  module_config):
     backtest_results = {}
     # start x bars in the past so we can do our forward looking
     potential_profitable_lines = {}
-    for i in reversed(range(_module_config['line_profit_backward_range'], len(ticker_history)-_module_config['line_profit_forward_range'])):
+    for i in reversed(range(_module_config['line_profit_forward_range'], len(ticker_history)-_module_config['line_profit_backward_range'])):
         i = i * -1 #dumb lol
-        profitability = determine_line_profitability(ticker, ticker_history
-
-                                                     , i, _module_config)
+        profitability = determine_line_profitability(ticker, ticker_history, i, _module_config)
         if profitability  >= _module_config['line_profit_minimum'] or profitability <= _module_config['line_profit_minimum']*-1:
             #todo write the profitz hurr
             # print(f"Found profitable line on {ticker}:{human_readable_datetime(timestamp_to_datetime(ticker_history[i].timestamp))}: Profit Percentage: {profitability}")
@@ -179,90 +218,14 @@ def find_ticker_profitable_lines(ticker, ticker_history,  module_config):
                 potential_profitable_lines[int(profitability)] = []
             potential_profitable_lines[int(profitability)].append(i)
 
-    # positive_lines = []
-    # negative_lines = []
-    profitable_lines =  {}
+    #blah ok now that i'm not sleepy let's try to figure this out
+    #basically we need to compare each potential profitable line to the other profitable lines we've found so far
+    #if they're the same line, we can keep them in the listing, otherwise we need to remove them
 
-    #ok so now that we'
-    # re here, we need to compare each profitable line to the others to see if they have a similar shape
-    # internal_matches = {}
-    for percentage, intervals in potential_profitable_lines.items():
-        #ok so the idea here is to iterate through each interval found and validate
-        for interval in intervals:
-            matched_inverse = False  # check for a match in an inverse case
-            profits = [percentage]
-            positive = percentage > 0
-            for _percentage, _intervals in potential_profitable_lines.items():
-                _positive = _percentage > 0
-                if interval in _intervals:
-                    if _positive != positive:
-                        matched_inverse = True
-
-                    if _percentage not in profits:
-                        profits.append(_percentage)
-                if not matched_inverse:
-                    avg = int(mean(profits))
-                    if avg not in profitable_lines:
-                        profitable_lines[avg]= []
-                    if interval not in profitable_lines[avg]:
-                        profitable_lines[avg].append(interval)
-    #ok so once we're here we need to do one final pass to clearn everything up
+    profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history,{[x for x in potential_profitable_lines.keys()][0]:potential_profitable_lines[[x for x in potential_profitable_lines.keys()][0]]}, module_config)
+    # profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history, potential_profitable_lines, module_config)
     return profitable_lines
-    # print()
-    # for percentage, intervals in potential_profitable_lines.items():
-    #     #ok so the idea here is to iterate through each interval found and validate
-    #     for interval in intervals:
-    #         percentages = [key for key, value in profitable_lines.items() if interval in value]
 
-        #1. does it appear in any line matches that  are the inverse
-        #2. if not get the average profitability
-    #     if percentage not in internal_matches:
-    #         internal_matches[percentage] = {}
-    #     for interval in intervals:
-    #         #blah this is going to be complicated
-    #         for second_pass_intervals in potential_profitable_lines.values():
-    #             for second_pass_interval in second_pass_intervals:
-    #                 if second_pass_interval == interval:
-    #                     continue #ignore itself
-    #                 else:
-    #                     # compare_tickers(ticker_a, ticker_history_a, ticker_b, ticker_history_b, module_config):
-    #                     try:
-    #                         if compare_tickers(ticker, ticker_history[:interval], ticker, ticker_history[:second_pass_interval], module_config) > module_config['line_similarity_gt']:
-    #                             if interval not in internal_matches[percentage]:
-    #                                 internal_matches[percentage][interval] = []#{"similar_intervals":[], }
-    #                             internal_matches[percentage][interval].append(second_pass_interval)
-    #                     except:
-    #                         traceback.print_exc()
-    #                         continue
-    #             pass
-    # overall_matches = {}
-    # for percentage, intervals in internal_matches.items():
-    #     for interval, _interval_matches in intervals.items():
-    #         matched = False
-    #         for key, match_list in overall_matches.items():
-    #
-    #             if interval in match_list:
-    #                 #if we have a match, we
-    #                 for im in _interval_matches:
-    #                     if im not in overall_matches[key]:
-    #                         overall_matches[key].append(im)
-    #                 matched = True
-    #         if not matched:
-    #             overall_matches[interval] =_interval_matches
-    # for percentage, intervals in internal_matches.items():
-    #     for interval, _interval_matches in intervals.items():
-    #         matched = False
-    #         for key, match_list in overall_matches.items():
-    #
-    #             if interval in match_list:
-    #                 # if we have a match, we
-    #                 for im in _interval_matches:
-    #                     if im not in overall_matches[key]:
-    #                         overall_matches[key].append(im)
-    #                 matched = True
-    #         if not matched:
-    #             overall_matches[interval] = _interval_matches
-                    # overall_matches[key]
     pass
     # pass
 def determine_line_profitability(ticker, ticker_history, index, module_config):
@@ -304,3 +267,31 @@ def determine_line_profitability(ticker, ticker_history, index, module_config):
 #     #
 #     # plt.title(f'Shape similarity is: {similarity}', fontsize=14, fontweight='bold')
 #     # plt.show()
+
+
+def adjust_ticker_history_by_percentage(ticker_history,percentage, module_config):
+    th = []
+    for i in range(0, len(ticker_history)):
+        pass
+        close_one_percent = ticker_history[i].close/100
+        open_one_percent = ticker_history[i].open/100
+        high_one_percent = ticker_history[i].high/100
+        low_one_percent = ticker_history[i].low/100
+        # float(percentage * one_percent)
+        # def __init__(self, open, close, high, low, volume, timestamp):
+        #
+        th.append(TickerHistory(round(float(percentage*open_one_percent),2),round(float(percentage*close_one_percent),2),round(float(percentage*high_one_percent),2),round(float(percentage*low_one_percent),2), ticker_history[i].volume, ticker_history[i].timestamp))
+    return th
+def normalize_prices(ticker_history_a, ticker_history_b, module_config):
+    # ok first we detemine the larger of the two
+    if ticker_history_a[-1].close > ticker_history_b[-1].close:
+        # we need to figure out what percentage of a  is b
+        percentage = int(float(ticker_history_a[-1].close / ticker_history_b[-1].close)*100)
+        one_percent = ticker_history_b[-1].close/100
+        return ticker_history_a,adjust_ticker_history_by_percentage(ticker_history_b, percentage, module_config)
+        #ok so first
+        pass
+    else:
+        percentage = int(float(ticker_history_b[-1].close / ticker_history_a[-1].close)*100)
+        # one_percent = ticker_history_a[-1].close/100
+        return adjust_ticker_history_by_percentage(ticker_history_a, percentage, module_config),ticker_history_b
