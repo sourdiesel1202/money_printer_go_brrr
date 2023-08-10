@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 import os
 import time
 import traceback
@@ -10,8 +11,8 @@ from statistics import mean
 
 from tickers import load_ticker_symbol_by_id, load_ticker_history_by_id
 from functions import execute_query, execute_update, timestamp_to_datetime, human_readable_datetime, \
-    calculate_percentage
-from history import load_ticker_history_db, TickerHistory
+    calculate_percentage, process_list_concurrently
+from history import load_ticker_history_db, TickerHistory, load_ticker_history_cached
 from shape import compare_tickers_at_index, determine_line_similarity
 
 
@@ -100,7 +101,7 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
     # /find_ticker_profitable_lines(ticker, load_ticker_history_db(ticker, module_config, connection=connection), module_config)
     pass
     ticker_profitable_lines = find_ticker_profitable_lines(ticker, ticker_history,module_config)
-    profitable_line_matrix = load_profitable_line_matrix(connection, module_config)
+    profitable_line_matrix = load_profitable_line_matrix(connection, module_config, ignore_cache=True)
     pass
     loaded_histories ={}
     #ok so the idea here is now to iterate over the genereated profitable lines of the ticker to the profitable lines of the market
@@ -124,15 +125,15 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
                 raise Exception
             if compare_ticker not in loaded_histories:
 
-                loaded_histories[compare_ticker]=load_ticker_history_db(compare_ticker, module_config, connection=connection)
+                loaded_histories[compare_ticker]=load_ticker_history_cached(compare_ticker, module_config)
             #ok so now we need to load the ticker history entry at the matching id
             # history_entry = load_ticker_history_by_id(connection, [x for x in line_data['matches'][0].keys()][0],compare_ticker, module_config)
             history_entry = [x for x in loaded_histories[compare_ticker] if x.timestamp == int(line_data['timestamp'])][0]
             compare_index = next((i for i, item in enumerate(loaded_histories[compare_ticker]) if item.timestamp == history_entry.timestamp), -1)
-
+            _ticker_history, loaded_histories[compare_ticker] = normalize_prices(ticker_history, loaded_histories[compare_ticker],module_config)
             try:
-                if len(ticker_history[0:indexes[0]]) >= module_config['line_profit_backward_range'] and len(loaded_histories[compare_ticker]) >= module_config['line_profit_backward_range']:
-                    match_likelihood = compare_tickers_at_index(compare_index, ticker, ticker_history[0:indexes[0]], compare_ticker, loaded_histories[compare_ticker], module_config)
+                if len(_ticker_history[0:indexes[0]]) >= module_config['line_profit_backward_range'] and len(loaded_histories[compare_ticker]) >= module_config['line_profit_backward_range']:
+                    match_likelihood = compare_tickers_at_index(compare_index, ticker, _ticker_history[0:indexes[0]], compare_ticker, loaded_histories[compare_ticker], module_config)
                     matches[match_likelihood] = line
                     # profits[match_likelihood]= line_data['profit']
 
@@ -158,26 +159,163 @@ def compare_profitable_ticker_lines_to_market(connection,ticker, ticker_history,
             #the challenge is finding the index of the ticker history
         pass
 
+
+# def scrub_potential_profitable_line_indexes(ticker, ticker_history, i, indexes, module_config):
+def scrub_potential_profitable_line_indexes(kwarg):
+    '''
+    blahhhhhhhh just more performance improvements using subprocess
+    The idea here is we'll process a subset of indexes passed in from scrub_potential_profitable_lines,
+    once processed, write them locally to json and then load them back into the main process (although, when concurrent this
+    is the child process)
+
+    :param ticker:
+    :param ticker_history:
+    :param i:
+    :param indexes:
+    :param module_config:
+    :return:
+    '''
+    main_indexes = kwarg['main_indexes']
+    test_string = kwarg['test_string']
+    indexes = kwarg['indexes']
+    ticker = kwarg['ticker']
+    ticker_history = kwarg['ticker_history']
+    # i = kwarg['i']
+    module_config=kwarg['module_config']
+    index_dict = {}
+    for i in range(0, len(main_indexes)):
+
+        if main_indexes[i] not in index_dict:  # first pass on the indexes to get n
+            index_dict[indexes[i]] = {}
+        for ii in range(0, len(indexes)):  # second pass on indexes to get comparison
+            if i == ii:
+                index_dict[indexes[ii]] = round(1.00, 2)
+
+            ticker_history_a, ticker_history_b = normalize_prices(
+                ticker_history[indexes[i] - module_config['line_profit_backward_range']:indexes[i] + 1],
+                ticker_history[indexes[ii] - module_config['line_profit_backward_range']:indexes[ii] + 1],
+                module_config)
+            # print(f"Testing {i}/{len(indexes)} ${ticker}:{ticker_history[indexes[i]].dt}:last price ${ticker_history[indexes[i]].close}: => {ii}/{len(indexes)}  ${ticker_history[indexes[ii]].dt}:last price ${ticker_history[indexes[i]].close}: {similarity}")
+            similarity = determine_line_similarity(ticker_history_a, ticker_history_b, module_config)
+            index_dict[indexes[ii]] = round(similarity, 2)
+            print(f"{test_string}:Testing {i}/{len(main_indexes)}:{ii}/{len(indexes)} ${ticker}:{ticker_history_a[-1].dt}:Control Date : {ticker_history[indexes[i]].dt} => {ii}/{len(indexes)}  ${ticker}:{ticker_history_b[-1].dt}:Control Date: {ticker_history[indexes[ii]].dt}: Similarity: {similarity}")
+
+    with open(f"{module_config['output_dir']}cached/PL/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}PL{os.getpid()}.json", "w+") as f:
+        f.write(json.dumps(index_dict))
 def scrub_potential_profitable_lines(ticker, ticker_history,potential_profitable_lines, module_config):
 
     cleanup_dict= {}
     for profit_value, indexes in potential_profitable_lines.items():
-        #ok so now that we're here, let's go ahead and process the individual lines
-
-        index_dict = {} #THIS is where things are going to get complicado
+        index_dict = {}
+        # f"")
         for i in range(0, len(indexes)):
-            if indexes[i] not in index_dict: #first pass on the indexes to get n
-                index_dict[indexes[i]] ={}
-            for ii in range(0, len(indexes)): #second pass on indexes to get comparison
-                if i == ii:
-                    index_dict[indexes[ii]]=round(1.00,2)
 
-                ticker_history_a, ticker_history_b = normalize_prices(ticker_history[indexes[i]-module_config['line_profit_backward_range']:indexes[i]+1],ticker_history[indexes[ii]-module_config['line_profit_backward_range']:indexes[ii]+1] , module_config)
+            if indexes[i] not in index_dict:  # first pass on the indexes to get n
+                index_dict[indexes[i]] = {}
+            for ii in range(0, len(indexes)):  # second pass on indexes to get comparison
+                if i == ii:
+                    index_dict[indexes[ii]] = round(1.00, 2)
+
+                ticker_history_a, ticker_history_b = normalize_prices(
+                    ticker_history[indexes[i] - module_config['line_profit_backward_range']:indexes[i] + 1],
+                    ticker_history[indexes[ii] - module_config['line_profit_backward_range']:indexes[ii] + 1],
+                    module_config)
                 # print(f"Testing {i}/{len(indexes)} ${ticker}:{ticker_history[indexes[i]].dt}:last price ${ticker_history[indexes[i]].close}: => {ii}/{len(indexes)}  ${ticker_history[indexes[ii]].dt}:last price ${ticker_history[indexes[i]].close}: {similarity}")
-                similarity = determine_line_similarity( ticker_history_a, ticker_history_b, module_config)
-                index_dict[indexes[ii]]=round(similarity,2)
-                print(f"Testing {i}/{len(indexes)} ${ticker}:{ticker_history_a[-1].dt}:Control Date : {ticker_history[indexes[i]].dt} => {ii}/{len(indexes)}  ${ticker}:{ticker_history_b[-1].dt}:Control Date: {ticker_history[indexes[ii]].dt}: Similarity: {similarity}")
-            pass
+                try:
+                    similarity = determine_line_similarity(ticker_history_a, ticker_history_b, module_config)
+                    index_dict[indexes[ii]] = round(similarity, 2)
+                    print(f"Profit Index {[x for x in potential_profitable_lines.keys()].index(profit_value)}/{len([x for x in potential_profitable_lines.keys()])}: {profit_value}%: Testing {i}/{len(indexes)}:{ii}/{len(indexes)} ${ticker}:{ticker_history_a[-1].dt}:Control Date : {ticker_history[indexes[i]].dt} => {ii}/{len(indexes)}  ${ticker}:{ticker_history_b[-1].dt}:Control Date: {ticker_history[indexes[ii]].dt}: Similarity: {similarity}")
+                except:
+                    traceback.print_exc()
+                    index_dict[indexes[ii]] = round(0.00, 2)
+        #ok so now that we're here, let's go ahead and process the individual lines
+        # _pids = []
+        # index_dict = {} #THIS is where things are going to get complicado
+        # _keys = [x for x in indexes]
+        # # n = int(module_config['num_processes']/12)+1
+        # n = int(len(indexes) / 2) + 1
+        #
+        # # def scrub_potential_profitable_line_indexes(ticker, ticker_history, i, indexes, module_config):
+        # # _keys = [x for x in data]
+        # # n = batch_size
+        # index_loads = [_keys[i:i + n] for i in range(0, len(_keys), n)]
+        # # for _i in range(0, len(index_loads)):
+        # #     if indexes[i] not in index_loads[_i]:
+        # #         index_loads[_i].append(indexes[i]) #quick hack for that index bug
+        # loads = [{"test_string":f'Load {x}/{len(index_loads)}', "ticker": ticker, "module_config": module_config, "ticker_history": ticker_history, "main_indexes":index_loads[x], "indexes":indexes} for x in range(0, len(index_loads))]
+        # processes = {}
+        # for load in loads:
+        #     p = multiprocessing.Process(target=scrub_potential_profitable_line_indexes, args=(load,))
+        #     p.start()
+        #     processes[str(p.pid)] = p
+        # pids = [x for x in processes.keys()]
+        # while any(processes[p].is_alive() for p in processes.keys()):
+        #     pass
+        #     # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
+        #     # process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
+        #     # print(f"The following child processes are still running: {process_str}")
+        #     # time.sleep(0.5)
+        # #ok so once we are here, let's go ahead and load the index dict
+        # for pid in pids:
+        # # for pid in _pids:
+        #     # _pids.append(pid)
+        #     with open(f"{module_config['output_dir']}cached/PL/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}PL{pid}.json","r") as f:
+        #         data = json.loads(f.read())
+        #         for _index, similarity in data.items():
+        #             index_dict[int(_index)] = similarity
+
+        # for i in range(0, len(indexes)):
+        #     _keys = [x for x in indexes]
+        #     # n = int(module_config['num_processes']/12)+1
+        #     n = int(len(indexes) / 2) + 1
+        #
+        #     # def scrub_potential_profitable_line_indexes(ticker, ticker_history, i, indexes, module_config):
+        #     # _keys = [x for x in data]
+        #     # n = batch_size
+        #     index_loads = [_keys[i:i + n] for i in range(0, len(_keys), n)]
+        #     for _i in range(0, len(index_loads)):
+        #         if indexes[i] not in index_loads[_i]:
+        #             index_loads[_i].append(indexes[i]) #quick hack for that index bug
+        #     loads = [{"test_string":f'{i}/{len(indexes)}', "ticker": ticker, "module_config": module_config, "ticker_history": ticker_history, "i": index_loads[x].index(indexes[i]), "indexes":index_loads[x]} for x in range(0, len(index_loads))]
+        #     processes = {}
+        #     for load in loads:
+        #         p = multiprocessing.Process(target=scrub_potential_profitable_line_indexes, args=(load,))
+        #         p.start()
+        #         processes[str(p.pid)] = p
+        #     pids = [x for x in processes.keys()]
+        #     while any(processes[p].is_alive() for p in processes.keys()):
+        #         pass
+        #         # print(f"Waiting for {len([x for x in processes if x.is_alive()])} processes to complete. Going to sleep for 10 seconds")
+        #         # process_str = ','.join([str(v.pid) for v in processes.values() if v.is_alive()])
+        #         # print(f"The following child processes are still running: {process_str}")
+        #         # time.sleep(0.5)
+        #     #ok so once we are here, let's go ahead and load the index dict
+        #     for pid in pids:
+        #         _pids.append(pid)
+        #         # with open(f"{module_config['output_dir']}cached/PL/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}PL{pid}.json","r") as f:
+        #         #     data = json.loads(f.read())
+        #         #     for _index, similarity in data.items():
+        #         #         index_dict[int(_index)] = similarity
+        # for pid in _pids:
+        #     # _pids.append(pid)
+        #     with open(f"{module_config['output_dir']}cached/PL/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}PL{pid}.json","r") as f:
+        #         data = json.loads(f.read())
+        #         for _index, similarity in data.items():
+        #             index_dict[int(_index)] = similarity
+
+            # # process_list_concurrently(indexes, scrub_potential_profitable_line_indexes)
+            # if indexes[i] not in index_dict: #first pass on the indexes to get n
+            #     index_dict[indexes[i]] ={}
+            # for ii in range(0, len(indexes)): #second pass on indexes to get comparison
+            #     if i == ii:
+            #         index_dict[indexes[ii]]=round(1.00,2)
+            #
+            #     ticker_history_a, ticker_history_b = normalize_prices(ticker_history[indexes[i]-module_config['line_profit_backward_range']:indexes[i]+1],ticker_history[indexes[ii]-module_config['line_profit_backward_range']:indexes[ii]+1] , module_config)
+            #     # print(f"Testing {i}/{len(indexes)} ${ticker}:{ticker_history[indexes[i]].dt}:last price ${ticker_history[indexes[i]].close}: => {ii}/{len(indexes)}  ${ticker_history[indexes[ii]].dt}:last price ${ticker_history[indexes[i]].close}: {similarity}")
+            #     similarity = determine_line_similarity( ticker_history_a, ticker_history_b, module_config)
+            #     index_dict[indexes[ii]]=round(similarity,2)
+            #     print(f"Testing {i}/{len(indexes)} ${ticker}:{ticker_history_a[-1].dt}:Control Date : {ticker_history[indexes[i]].dt} => {ii}/{len(indexes)}  ${ticker}:{ticker_history_b[-1].dt}:Control Date: {ticker_history[indexes[ii]].dt}: Similarity: {similarity}")
+            # # pass
 
         cleanup_dict[profit_value]=index_dict
         pass
@@ -193,8 +331,9 @@ def scrub_potential_profitable_lines(ticker, ticker_history,potential_profitable
                 #do cleanup
                 if index in potential_profitable_lines[profit]:
                     potential_profitable_lines[profit].remove(index)
+    potential_profitable_lines = {k: v for k, v in potential_profitable_lines.items() if len(v) > 8}
     if not valid:
-        scrub_potential_profitable_lines(ticker, ticker_history, potential_profitable_lines, module_config)
+        return scrub_potential_profitable_lines(ticker, ticker_history, potential_profitable_lines, module_config)
     else:
         return potential_profitable_lines
 def find_ticker_profitable_lines(ticker, ticker_history,  module_config):
@@ -222,11 +361,12 @@ def find_ticker_profitable_lines(ticker, ticker_history,  module_config):
     #basically we need to compare each potential profitable line to the other profitable lines we've found so far
     #if they're the same line, we can keep them in the listing, otherwise we need to remove them
 
-    profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history,{[x for x in potential_profitable_lines.keys()][0]:potential_profitable_lines[[x for x in potential_profitable_lines.keys()][0]]}, module_config)
-    # profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history, potential_profitable_lines, module_config)
+    # profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history,{[x for x in potential_profitable_lines.keys()][0]:potential_profitable_lines[[x for x in potential_profitable_lines.keys()][0]]}, module_config)
+    potential_profitable_lines = {k:v for k,v in potential_profitable_lines.items() if len(v) > 20}
+
+    profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history, potential_profitable_lines, module_config)
     return profitable_lines
 
-    pass
     # pass
 def determine_line_profitability(ticker, ticker_history, index, module_config):
     '''
