@@ -56,8 +56,9 @@ def process_ticker_alerts(connection, ticker, ticker_history, module_config):
             except:
                 traceback.print_exc()
 
+    execute_update(connection, "lock tables alerts_tickeralert write, history_tickerhistory read, tickers_ticker read")
     if len(values_list) > 0:
-        execute_query(connection,f"select * from alerts_tickeralert where ticker_history_id=(select max(id) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')", verbose=True)
+        # execute_query(connection,f"select * from alerts_tickeralert where ticker_history_id=(select max(id) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')", verbose=True)
         execute_update(connection,f"insert ignore into alerts_tickeralert (alert_type, ticker_history_id) values {','.join(values_list)}",auto_commit=False, verbose=True)
     #iterate back through, but this time we only fire the ignore functions, which should simply load the alerts for the period from the DB and then
     # ignore any alerts based upon other alerts
@@ -65,6 +66,8 @@ def process_ticker_alerts(connection, ticker, ticker_history, module_config):
         # def ignore_golden_cross_alert(connection, alert_direction, ticker, ticker_history, module_config):
         #pass in as callable,
         function_dict[InventoryFunctionTypes.IGNORE](connection, function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE], ticker, _th, module_config)
+    connection.commit()
+    execute_update(connection, "unlock tables")
 
 def get_indicator_inventory():
     '''

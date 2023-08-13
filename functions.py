@@ -158,7 +158,10 @@ def execute_update(connection,sql, auto_commit=True, verbose=True):
     cursor = connection.cursor()
     try:
         # pass
-        cursor.execute(sql)
+        with open(f"sql/updates.sql", "a+") as f:
+            f.write(sql)
+            pass
+        # cursor.execute(sql)
 
         if auto_commit:
             try:

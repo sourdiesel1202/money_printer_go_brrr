@@ -92,16 +92,19 @@ def write_ticker_history_db_entries(connection, ticker, ticker_history, module_c
         # for values in values_entries:\
     #ok i don't really believe this will work but let's try it
     execute_update(connection, "lock tables history_tickerhistory write, tickers_ticker read ")
+    # execute_update(connection, "start transaction")
     ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
     values_entries = []
     for th in ticker_history:
         values_entries.append(f"({ticker_id}, {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
     history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
         # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
-    execute_update(connection,history_sql,verbose=False, auto_commit=False)
+    execute_update(connection,history_sql,verbose=True, auto_commit=False)
 
     connection.commit()
     execute_update(connection, "unlock tables")
+    # execute_update(connection, "commit")
+    # connection.commit()
 
 
 def convert_ticker_history_to_csv(ticker, ticker_history):

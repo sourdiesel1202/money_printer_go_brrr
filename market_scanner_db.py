@@ -144,7 +144,7 @@ def load_ticker_histories(_tickers):
             print(f"{os.getpid()}: Loading {_tickers.index(ticker)+1}/{len(_tickers)} ticker datas")
             try:
                 # if not module_config['test_mode']:
-                _ = load_ticker_history_raw(ticker, client,module_config['timespan_multiplier'], module_config['timespan'],get_today(module_config, minus_days=4), today, limit=50000, module_config=_module_config, connection=connection)
+                _ = load_ticker_history_raw(ticker, client,module_config['timespan_multiplier'], module_config['timespan'],get_today(module_config, minus_days=14), today, limit=50000, module_config=_module_config, connection=connection)
                 # else:
                     # _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), 11, limit=50000, module_config=_module_config)
                 successes.append(ticker)
@@ -230,16 +230,16 @@ def find_tickers():
             if module_config['test_mode']:
                 if module_config['test_use_test_population']:
                     # tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
-                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:module_config['test_population_size']]]
+                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct symbol from tickers_ticker")[1:module_config['test_population_size']]]
                 else:
-                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct symbol from tickers_ticker")[1:]]
                 # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
                 # tickers
             else:
                 if module_config['test_use_input_tickers']:
                     _tickers = module_config['tickers']
                 else:
-                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+                    _tickers =  [x[0] for x in  execute_query(connection, "select distinct symbol from tickers_ticker")[1:]]
                     # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
         else:
             _tickers = module_config['tickers']

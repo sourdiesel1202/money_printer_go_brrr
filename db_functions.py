@@ -124,9 +124,14 @@ def process_ticker_history(connection, ticker,ticker_history, module_config):
     # connection = obtain_db_connection()
     # def process_ticker_alerts(connection, ticker, ticker_history, module_config):
     process_ticker_alerts(connection, ticker,ticker_history, module_config)
+
     #now we process validation
     process_ticker_validation(connection, ticker, ticker_history, module_config)
-    execute_update(connection, f"insert into lines_similarline (ticker_id, ticker_history_id, backward_range, forward_range) values ((select id from tickers_ticker where symbol='{ticker}'), (select id from history_tickerhistory where timestamp={load_ticker_last_updated(ticker, connection, module_config)} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')), 1,1)", auto_commit=False)
+    ticker_last_updated = load_ticker_last_updated(ticker, connection, module_config)
+    execute_update(connection, "lock tables lines_similarline write, history_tickerhistory read, tickers_ticker read")
+
+    execute_update(connection, f"insert into lines_similarline (ticker_id, ticker_history_id, backward_range, forward_range) values ((select id from tickers_ticker where symbol='{ticker}'), (select id from history_tickerhistory where timestamp={ticker_last_updated} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')), 1,1)", auto_commit=False)
     connection.commit()
+    execute_update(connection, "unlock tables")
     # process_ticker_validation(connection, ticker, ticker_history, module_config)
 

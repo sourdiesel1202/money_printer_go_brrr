@@ -2,6 +2,7 @@ configs/*
 output/*
 data/backtests/*
 data/cached/*.csv
+data/cached/PL/*.csv
 .idea/*
 *.pyc
 .env
