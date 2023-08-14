@@ -48,6 +48,7 @@ def process_ticker_alerts(connection, ticker, ticker_history, module_config):
         # def load_macd(ticker, ticker_history, module_config):
         # def did_golden_cross_alert(indicator_data, ticker, ticker_history, module_config)
         # def determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config):
+        print(f"Running {indicator} on {ticker}")
         if function_dict[InventoryFunctionTypes.DID_ALERT](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history,module_config, connection=connection), ticker, ticker_history, module_config, connection=connection):
             #alert did fire, so now we need to write the alert
             try:
@@ -56,18 +57,19 @@ def process_ticker_alerts(connection, ticker, ticker_history, module_config):
             except:
                 traceback.print_exc()
 
-    execute_update(connection, "lock tables alerts_tickeralert write, history_tickerhistory read, tickers_ticker read")
+    # execute_update(connection, "lock tables alerts_tickeralert write, history_tickerhistory read, tickers_ticker read")
     if len(values_list) > 0:
         # execute_query(connection,f"select * from alerts_tickeralert where ticker_history_id=(select max(id) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')", verbose=True)
-        execute_update(connection,f"insert ignore into alerts_tickeralert (alert_type, ticker_history_id) values {','.join(values_list)}",auto_commit=False, verbose=True)
+        execute_update(connection,f"insert ignore into alerts_tickeralert (alert_type, ticker_history_id) values {','.join(values_list)}",auto_commit=False, verbose=True, cache=True)
     #iterate back through, but this time we only fire the ignore functions, which should simply load the alerts for the period from the DB and then
     # ignore any alerts based upon other alerts
-    for indicator, function_dict in indicator_inventory.items():
-        # def ignore_golden_cross_alert(connection, alert_direction, ticker, ticker_history, module_config):
-        #pass in as callable,
-        function_dict[InventoryFunctionTypes.IGNORE](connection, function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE], ticker, _th, module_config)
-    connection.commit()
-    execute_update(connection, "unlock tables")
+    #todo run ignores
+    # for indicator, function_dict in indicator_inventory.items():
+    #     # def ignore_golden_cross_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    #     #pass in as callable,
+    #     function_dict[InventoryFunctionTypes.IGNORE](connection, function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE], ticker, _th, module_config)
+    # connection.commit()
+    # execute_update(connection, "unlock tables")
 
 def get_indicator_inventory():
     '''
@@ -633,7 +635,7 @@ def has_matching_trend_with_ticker(ticker_a, ticker_history_a,ticker_b, ticker_h
     return compare_tickers(ticker_a, ticker_history_a,ticker_b, ticker_history_b, module_config) >= module_config['line_similarity_gt']
 
 def load_profitable_lines(ticker,ticker_history, module_config,connection=None):
-    return load_profitable_line_matrix(connection, module_config)
+    return load_profitable_line_matrix(connection, module_config, ignore_cache=False)
 def load_ticker_similar_trends(ticker, module_config,connection=None):
     ticker_history = load_ticker_history_cached(ticker, module_config)
     result = []

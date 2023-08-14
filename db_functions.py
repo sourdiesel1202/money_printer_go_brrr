@@ -1,9 +1,10 @@
 import datetime
+import os
 import time
 import traceback
 
-from enums import AlertType, PositionType, strategy_type_dict, InventoryFunctionTypes
-from history import TickerHistory
+# from enums import AlertType, PositionType, strategy_type_dict, InventoryFunctionTypes
+# from history import TickerHistory
 # from validation import validate_ticker
 from functions import execute_query, execute_update, obtain_db_connection
 from indicators import process_ticker_alerts
@@ -124,14 +125,41 @@ def process_ticker_history(connection, ticker,ticker_history, module_config):
     # connection = obtain_db_connection()
     # def process_ticker_alerts(connection, ticker, ticker_history, module_config):
     process_ticker_alerts(connection, ticker,ticker_history, module_config)
-
+    print(f"Processed ticker alerts for {ticker}")
     #now we process validation
     process_ticker_validation(connection, ticker, ticker_history, module_config)
-    ticker_last_updated = load_ticker_last_updated(ticker, connection, module_config)
-    execute_update(connection, "lock tables lines_similarline write, history_tickerhistory read, tickers_ticker read")
+    # ticker_last_updated = load_ticker_last_updated(ticker, connection, module_config)
+    # execute_update(connection, "lock tables lines_similarline write, history_tickerhistory read, tickers_ticker read")
 
-    execute_update(connection, f"insert into lines_similarline (ticker_id, ticker_history_id, backward_range, forward_range) values ((select id from tickers_ticker where symbol='{ticker}'), (select id from history_tickerhistory where timestamp={ticker_last_updated} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')), 1,1)", auto_commit=False)
-    connection.commit()
-    execute_update(connection, "unlock tables")
+    execute_update(connection, f"insert into lines_similarline (ticker_id, ticker_history_id, backward_range, forward_range) values ((select id from tickers_ticker where symbol='{ticker}'), (select id from history_tickerhistory where timestamp=(select coalesce(max(timestamp), round(1000 * unix_timestamp(date_sub(now(), interval 365 day)))) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}) and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')), 1,1)", auto_commit=False, cache=True)
+    # connection.commit()
+    # execute_update(connection, "unlock tables")
     # process_ticker_validation(connection, ticker, ticker_history, module_config)
 
+# def clear_db_update_cache(module_config):
+#     with open("sql/updates.sql", "w+") as f:
+#         f.write("")
+#
+#     pass
+def combine_db_update_files(module_config):
+    results = []
+    for _file in os.listdir("sql/"):
+        if "_updates.sql" in _file:
+            with open(f"sql/{_file}", "r") as f:
+                for line in f.readlines():
+                    results.append(line)
+            # os.system(f"rm sql/{_file}")
+    for _file in os.listdir("sql/"):
+        if "_updates.sql" in _file:
+            os.system(f"rm sql/{_file}")
+    with open(f"sql/updates.sql", "w+") as f:
+        f.write('\n'.join(results))
+
+def execute_bulk_update_file(connection, module_config):
+    execute_update(connection, "start transaction", cache=False)
+    with open(f"sql/updates.sql", 'r') as f:
+        for statement in f.readlines():
+            if 'update' in statement.lower() or 'insert' in statement.lower():
+                execute_update(connection, statement, auto_commit=False, verbose=True, cache=False)
+    execute_update(connection, "commit",cache=False)
+    os.system(f"rm sql/updates.sql")

@@ -1,0 +1,2 @@
+insert ignore into tickers_contract (symbol, name, type, expry, description, strike_price, ticker_id) values ('O:ARMK230818C00039000', '2023-08-18 39 CALL ', 'CALL','2023-08-18', '39 2023-08-18 CALLS on ARMK', 39.0, (select id from tickers_ticker where symbol='ARMK'))
+insert ignore into tickers_contract (symbol, name, type, expry, description, strike_price, ticker_id) values ('O:ARMK230818P00039000', '2023-08-18 39 PUT ', 'PUT','2023-08-18', '39 2023-08-18 PUTS on ARMK', 39.0, (select id from tickers_ticker where symbol='ARMK'))

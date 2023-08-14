@@ -334,7 +334,7 @@ def write_discovered_contracts(contracts, ticker, ticker_history, module_config,
     for contract in contracts:
         option_symbol = OptionSymbol(contract)
         sql = f"insert ignore into tickers_contract (symbol, name, type, expry, description, strike_price, ticker_id) values ('{contract}', '{option_symbol.expiry} {option_symbol.strike_price} {PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION} ', '{PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION}','{option_symbol.expiry}', '{option_symbol.strike_price} {option_symbol.expiry} {PositionType.LONG_OPTION if option_symbol.call_or_put == 'C' else PositionType.SHORT_OPTION}S on {ticker}', {float(option_symbol.strike_price)}, (select id from tickers_ticker where symbol='{ticker}'))"
-        execute_update(connection, sql, verbose=True,auto_commit=True)
+        execute_update(connection, sql, verbose=True,auto_commit=True, cache=True)
 
 
 def load_ticker_contract_history(contracts, ticker, ticker_history,module_config, connection):

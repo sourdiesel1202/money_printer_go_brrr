@@ -26,7 +26,7 @@ def load_profitable_line_matrix(connection,  module_config, ignore_cache=False):
     #load the profitable line matrix
     if not ignore_cache:
         if os.path.exists(f"{module_config['output_dir']}cached/profitable_line_cache.json"):
-            # print(f"Loading profitable line matrix from cache")
+            print(f"Loading profitable line matrix from cache")
             with open(f"{module_config['output_dir']}cached/profitable_line_cache.json", "r") as f:
                 return json.loads(f.read())
 

@@ -152,16 +152,18 @@ def execute_query(connection,sql, verbose=True):
         cursor.close()
         traceback.print_exc()
 
-def execute_update(connection,sql, auto_commit=True, verbose=True):
+def execute_update(connection,sql, auto_commit=True, verbose=True, cache=True):
     if verbose:
         print(sql)
     cursor = connection.cursor()
     try:
         # pass
-        with open(f"sql/updates.sql", "a+") as f:
-            f.write(sql)
-            pass
-        # cursor.execute(sql)
+        if cache:
+            with open(f"sql/{os.getpid()}_updates.sql", "a+") as f:
+                f.writelines(f"{sql}\n")
+                pass
+        else:
+            cursor.execute(sql)
 
         if auto_commit:
             try:

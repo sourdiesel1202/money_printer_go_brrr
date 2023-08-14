@@ -2,7 +2,7 @@
 # import operator import itemgetter
 import urllib.parse
 
-from db_functions import  process_ticker_history, load_mpb_report
+from db_functions import process_ticker_history, load_mpb_report, combine_db_update_files, execute_bulk_update_file
 from profitable_lines import dump_profitable_line_cache
 from tickers import load_ticker_last_updated
 from functions import obtain_db_connection, execute_query, timestamp_to_datetime
@@ -96,6 +96,7 @@ def process_tickers(tickers):
     connection = obtain_db_connection(load_module_config('market_scanner_db'))
     try:
         for i in range(0, len(tickers)):
+            print(f"Processing {i+1}/{len(tickers)}")
 
             ticker = tickers[i]
             if '$' in ticker or '.' in ticker:
@@ -107,7 +108,7 @@ def process_tickers(tickers):
                     print(f"{os.getpid()}:{datetime.datetime.now()} Checking ticker ({i}/{len(tickers) - 1}): {ticker}")
                 # ticker_history = load_ticker_history_raw(ticker, client, 1, module_config['timespan'],get_today(module_config, minus_days=365), today, 10000, module_config)
                 ticker_history = load_ticker_history_cached(ticker, module_config)
-                test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
+                # test_timestamps = [datetime.datetime.fromtimestamp(x.timestamp / 1e3, tz=ZoneInfo('US/Eastern')).strftime("%Y-%m-%d %H:%M:%S") for x in ticker_history]
                 if ticker_history[-1].volume < module_config['volume_limit'] or ticker_history[-1].close < module_config['price_limit']:
                     # if module_  config['logging']:
                     print(f"${ticker} has Volume: {ticker_history[-1].volume} Price: {ticker_history[-1].close}, skipping")
@@ -132,7 +133,6 @@ def process_tickers(tickers):
     connection.close()
 
     # process_results(ticker_results)
-
 def load_ticker_histories(_tickers):
     client = RESTClient(api_key=module_config['api_key'])
     _module_config  =load_module_config(__file__.split("/")[-1].split(".py")[0])
@@ -158,14 +158,52 @@ def load_ticker_histories(_tickers):
     # connection.close()
     connection.close()
     print(f"Closed ticker history load connection")
+def load_market_history(connection, module_config):
+    # load_ticker_histories([x[0] for x in  execute_query(connection, "select distinct symbol from tickers_ticker")[1:]])
+    # tickers = [x[0] for x in execute_query(connection, "select distinct symbol from tickers_ticker")[1:]]
+    if not module_config['test_mode'] or (module_config['test_mode'] and not module_config['test_use_input_tickers']):
+
+        if module_config['test_mode']:
+            if module_config['test_use_test_population']:
+                # tickers = read_csv(f"data/nyse.csv")[1:module_config['test_population_size']]
+                _tickers = [x[0] for x in execute_query(connection, "select distinct symbol from tickers_ticker")[
+                                          1:module_config['test_population_size']]]
+            else:
+                _tickers = [x[0] for x in execute_query(connection, "select distinct symbol from tickers_ticker")[1:]]
+            # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+            # tickers
+        else:
+            if module_config['test_use_input_tickers']:
+                _tickers = module_config['tickers']
+            else:
+                _tickers = [x[0] for x in execute_query(connection, "select distinct symbol from tickers_ticker")[1:]]
+                # _tickers = [tickers[i][0] for i in range(0, len(tickers))]
+    else:
+        _tickers = module_config['tickers']
+    if module_config['run_concurrently']:
+        process_list_concurrently(_tickers, load_ticker_histories,
+                                  int(len(_tickers) / module_config['num_processes']) + 1)
+    else:
+        load_ticker_histories(_tickers)
+    # ok so if we get here we can go ahead and write the cache
+    if module_config['write_cache']:
+        # if not module_config['test_use_input_tickers']:
+        dump_ticker_cache(module_config)
+    print(f"Loaded ticker histories")
+    combine_db_update_files(module_config)
+    execute_bulk_update_file(connection, module_config)
 
 def generate_report(ticker_list, module_config):
     # _tickers = load_ticker_histories(_tickers)
     print(f"Loading history data for {len(ticker_list)} tickers")
-    if module_config['run_concurrently']:
-        process_list_concurrently(ticker_list, load_ticker_histories,int(len(ticker_list)/module_config['num_processes'])+1)
-    else:
-        load_ticker_histories(ticker_list)
+    connection = obtain_db_connection(module_config)
+    load_market_history(connection, module_config)
+    connection.close()
+    # if module_config['run_concurrently']:
+
+    #     process_list_concurrently(ticker_list, load_ticker_histories,int(len(ticker_list)/module_config['num_processes'])+1)
+    # else:
+    #     load_ticker_histories(ticker_list)
     #ok so if we get here we can go ahead and write the cache
     if module_config['write_cache']:
         # if not module_config['test_use_input_tickers']:
@@ -205,15 +243,8 @@ def generate_report(ticker_list, module_config):
     else:
         process_tickers(ticker_list)
         # combined = read_csv(f"{module_config['output_dir']}{os.getpid()}.csv")
-    # header = combined[0]
-    # del combined[0]
-    # sorted(combined, key=lambda x: int(x[-2]))
-    # itemgetter_int = chained(operator.itemgetter(*[header.index(x) for x in module_config['sort_fields']]), partial(map, float), tuple)
-    # combined.sort(key=itemgetter_int)
-    # combined.reverse()
-    # # results.reverse()
-    # combined.insert(0, header)
-    # return combined
+    combine_db_update_files(module_config)
+    execute_bulk_update_file(connection, module_config)
 def find_tickers():
     start_time = time.time()
     # n = module_config['process_load_size']

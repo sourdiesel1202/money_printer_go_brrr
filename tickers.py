@@ -83,10 +83,10 @@ def load_ticker_id_by_symbol(connection,symbol, module_config):
     return execute_query(connection, f"select id from tickers_ticker where id='{symbol}'")[1][0]
 
 def load_ticker_last_updated(ticker, connection, module_config):
-    execute_update(connection, "lock tables history_tickerhistory read, tickers_ticker read")
+    # execute_update(connection, "lock tables history_tickerhistory read, tickers_ticker read", cache=False)
     ticker_last_updated =  int(execute_query(connection, f"select coalesce(max(timestamp), round(1000 * unix_timestamp(date_sub(now(), interval 365 day)))) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'")[1][0])
-    connection.commit()
-    execute_update(connection, f"unlock tables")
+    # connection.commit()
+    # execute_update(connection, f"unlock tables")
     return ticker_last_updated
 
 def load_ticker_history_by_id(connection, ticker_history_id, ticker, module_config):

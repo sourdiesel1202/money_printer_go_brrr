@@ -5,11 +5,14 @@ import traceback
 
 import mibian
 from polygon import OptionSymbol
+from polygon.rest import RESTClient
 
+# from db_functions import combine_db_update_files, execute_bulk_update_file
 from enums import OrderType, PositionType
 import datetime,io
 from zoneinfo import ZoneInfo
-from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today, timestamp_to_datetime, human_readable_datetime, execute_query, execute_update, obtain_db_connection
+from functions import generate_csv_string, read_csv, write_csv, delete_csv, get_today, timestamp_to_datetime, \
+    human_readable_datetime, execute_query, execute_update, obtain_db_connection, process_list_concurrently
 import pandas as pd
 import polygon
 from stockstats import wrap
@@ -91,18 +94,19 @@ def write_ticker_history_db_entries(connection, ticker, ticker_history, module_c
 
         # for values in values_entries:\
     #ok i don't really believe this will work but let's try it
-    execute_update(connection, "lock tables history_tickerhistory write, tickers_ticker read ")
+    # execute_update(connection, "lock tables history_tickerhistory write, tickers_ticker read ")
     # execute_update(connection, "start transaction")
-    ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
-    values_entries = []
-    for th in ticker_history:
-        values_entries.append(f"({ticker_id}, {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
-    history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
-        # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
-    execute_update(connection,history_sql,verbose=True, auto_commit=False)
+        if len(ticker_history) > 0:
+            ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
+            values_entries = []
+            for th in ticker_history:
+                values_entries.append(f"({ticker_id}, {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
+            history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
+            # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
+            execute_update(connection,history_sql,verbose=True, auto_commit=False)
 
-    connection.commit()
-    execute_update(connection, "unlock tables")
+        # connection.commit()
+    # execute_update(connection, "unlock tables")
     # execute_update(connection, "commit")
     # connection.commit()
 
@@ -462,7 +466,7 @@ def write_contract_history_db_entries(connection, ticker, contract_history, modu
     if len(execute_query(connection, f"select * from history_contracthistory where timestamp >= {contract_history[0].timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and contract_id=(select id from tickers_ticker where symbol='{ticker}')", verbose=True)) == 1:
 
         history_sql = f"INSERT ignore INTO history_contracthistory ( contract_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier, implied_volatility, delta, theta, gamma, rho) VALUES {','.join(values_entries)}"
-        execute_update(connection,history_sql,verbose=True, auto_commit=False)
+        execute_update(connection,history_sql,verbose=True, auto_commit=False, cache=True)
 
 
 def load_cached_option_tickers(ticker, module_config):
@@ -559,3 +563,29 @@ def normalize_contract_history_data_for_hour(ticker, contract_history,ticker_his
     #         break
 
     pass
+# def load_ticker_histories(_tickers, module_config):
+#     client = RESTClient(api_key=module_config['api_key'])
+#     _module_config  =load_module_config(__file__.split("/")[-1].split(".py")[0])
+#     connection= obtain_db_connection(_module_config)
+#     try:
+#         successes = []
+#         failures = [['symbol']]
+#         for ticker in _tickers:
+#             print(f"{os.getpid()}: Loading {_tickers.index(ticker)+1}/{len(_tickers)} ticker datas")
+#             try:
+#                 # if not module_config['test_mode']:
+#                 _ = load_ticker_history_raw(ticker, client,module_config['timespan_multiplier'], module_config['timespan'],get_today(module_config, minus_days=14), today, limit=50000, module_config=_module_config, connection=connection)
+#                 # else:
+#                     # _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), 11, limit=50000, module_config=_module_config)
+#                 successes.append(ticker)
+#             except:
+#                 # traceback.print_exc()
+#                 failures.append([ticker])
+#         # write_csv(f"{module_config['output_dir']}mpb_load_failures.csv",failures)
+#     except:
+#         traceback.print_exc()
+#     # return  successes
+#     # connection.close()
+#     connection.close()
+#     print(f"Closed ticker history load connection")
+
