@@ -67,9 +67,10 @@ def process_market_history(ticker_list, module_config):
         # combined = combine_csvs([f"{module_config['output_dir']}{x.pid}.csv" for x in processes.values()])
     else:
         process_tickers(ticker_list)
-
+    connection = obtain_db_connection(module_config)
     combine_db_update_files(module_config)
     execute_bulk_update_file(connection, module_config)
+    connection.close()
 
 
 if __name__ == '__main__':

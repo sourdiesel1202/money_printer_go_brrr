@@ -27,11 +27,12 @@ def load_timespan_last_updated(ticker, connection, module_config):
 
 
 def load_nyse_tickers(connection, module_config):
-    return [x[0] for x in execute_query(connection,"select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+    # return [x[0] for x in execute_query(connection,"select distinct t.symbol from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is not null")[1:]]
+    return [x[0] for x in execute_query(connection,"select distinct t.symbol from tickers_ticker t")[1:]]
 
 
 # def write_ticker_alert(connection,  alert_type, ticker, ticker_history,module_config):
-#     execute_update(connection,f"insert into alerts_tickeralert (alert_type, ticker_history_id) values ('{alert_type}',(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))", auto_commit=True, verbose=True)
+#     execute_update(connection,f"insert into alerts_tickeralert (alert_type, ticker_history_id) values ('{alert_type}',(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))", auto_commit=True, verbose=False)
 
 
 def process_ticker_similar_lines(ticker, ticker_history, module_config):
@@ -160,6 +161,6 @@ def execute_bulk_update_file(connection, module_config):
     with open(f"sql/updates.sql", 'r') as f:
         for statement in f.readlines():
             if 'update' in statement.lower() or 'insert' in statement.lower():
-                execute_update(connection, statement, auto_commit=False, verbose=True, cache=False)
+                execute_update(connection, statement, auto_commit=False, verbose=False, cache=False)
     execute_update(connection, "commit",cache=False)
     os.system(f"rm sql/updates.sql")

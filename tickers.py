@@ -90,4 +90,4 @@ def load_ticker_last_updated(ticker, connection, module_config):
     return ticker_last_updated
 
 def load_ticker_history_by_id(connection, ticker_history_id, ticker, module_config):
-    return TickerHistory(*[float(x) if '.' in x else int(x) for x in execute_query(connection, f"select open, close, high, low, volume, timestamp from history_tickerhistory where id='{ticker_history_id}' and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp asc", verbose=True)[1]])
+    return TickerHistory(*[float(x) if '.' in x else int(x) for x in execute_query(connection, f"select open, close, high, low, volume, timestamp from history_tickerhistory where id='{ticker_history_id}' and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}') order by timestamp asc", verbose=False)[1]])

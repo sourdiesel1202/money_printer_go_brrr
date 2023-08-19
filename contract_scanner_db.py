@@ -8,6 +8,7 @@ from functions import obtain_db_connection, execute_query, timestamp_to_datetime
 from multiprocessing import freeze_support
 
 from indicators import load_ticker_similar_trends
+from market_scanner_db import is_ticker_eligible
 from mpb_html import build_dashboard
 from iteration_utilities import chained
 from functools import partial
@@ -117,7 +118,11 @@ def load_ticker_option_contracts(ticker_list):
     for ticker in ticker_list:
 
         try:
-                _load_ticker_option_contracts(ticker, load_ticker_history_cached(ticker, module_config), module_config, connection=connection)
+                ticker_history = load_ticker_history_cached(ticker, module_config)
+                if not is_ticker_eligible(ticker, ticker_history, load_module_config("market_scanner_db")):
+                    continue
+
+                _load_ticker_option_contracts(ticker, ticker_history, module_config, connection=connection)
                 print(f"Loaded contracts for {ticker_list.index(ticker)}/{len(ticker_list)-1}")
         except:
             traceback.print_exc()
@@ -140,7 +145,10 @@ def load_ticker_contract_history(contract_data):
     for ticker, contracts in contract_dict.items():
         # ticker = data[-1]
         try:
-                _load_ticker_contract_history(contracts,ticker, load_ticker_history_cached(ticker, module_config), module_config, connection=connection)
+                ticker_history =load_ticker_history_cached(ticker, module_config)
+                if not is_ticker_eligible(ticker, ticker_history, load_module_config("market_scanner_db")):
+                    continue
+                _load_ticker_contract_history(contracts,ticker, ticker_history, module_config, connection=connection)
                 print(f"Loaded contract history for {[x for x in contract_dict.keys()].index(ticker)}/{len([x for x in contract_dict.keys()])-1} tickers, ({len(contracts)} contracts)")
         except:
             traceback.print_exc()

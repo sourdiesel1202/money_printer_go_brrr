@@ -133,7 +133,7 @@ def obtain_db_connection(module_config):
     # print(f"connection obtained to {env}: {creds[env]['host']}")
     # return connection
 
-def execute_query(connection,sql, verbose=True):
+def execute_query(connection,sql, verbose=False):
     cursor = connection.cursor()
     try:
         if verbose:
@@ -152,7 +152,7 @@ def execute_query(connection,sql, verbose=True):
         cursor.close()
         traceback.print_exc()
 
-def execute_update(connection,sql, auto_commit=True, verbose=True, cache=True):
+def execute_update(connection,sql, auto_commit=True, verbose=False, cache=True):
     if verbose:
         print(sql)
     cursor = connection.cursor()
@@ -163,7 +163,13 @@ def execute_update(connection,sql, auto_commit=True, verbose=True, cache=True):
                 f.writelines(f"{sql}\n")
                 pass
         else:
-            cursor.execute(sql)
+            try:
+                cursor.execute(sql)
+            except Exception as e:
+                # traceback.print_exc()
+                with open(f"sql/errors.sql", "a+") as f:
+                    f.writelines(f"{sql}")
+                    pass
 
         if auto_commit:
             try:

@@ -64,9 +64,9 @@ def update_ticker_profitable_lines(connection,profitable_line,ticker, ticker_his
             if index not in matches:
                 matches.append(index)
     #ok so lock the rows first
-    execute_query(connection, f"select * from lines_profitableline_histories where profitableline_id = (select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{profitable_line}'))", verbose=True)
+    execute_query(connection, f"select * from lines_profitableline_histories where profitableline_id = (select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{profitable_line}'))", verbose=False)
     for index in matches:
-        execute_update( connection, f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{profitable_line}')),(select id from history_tickerhistory where timestamp={ticker_history[index].timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))", verbose=True, auto_commit=False)
+        execute_update( connection, f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{profitable_line}')),(select id from history_tickerhistory where timestamp={ticker_history[index].timestamp} and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))", verbose=False, auto_commit=False)
     connection.commit()
 def write_ticker_profitable_lines(connection, ticker, ticker_history, profitable_lines, module_config):
     #ok so the idea where is that we write the line first and then
@@ -74,15 +74,15 @@ def write_ticker_profitable_lines(connection, ticker, ticker_history, profitable
         if len(indexes) >= module_config['line_profit_minimum_matches']:
             new_line_str = f"Profitable Line {str(time.time()).split('.')[0]}{os.getpid()}"
             execute_query(connection, f"select * from lines_profitablelinetype where name='{new_line_str}' ")
-            execute_update(connection, sql=f"insert ignore into lines_profitablelinetype (name) values ('{new_line_str}')", auto_commit=True, verbose=True)
+            execute_update(connection, sql=f"insert ignore into lines_profitablelinetype (name) values ('{new_line_str}')", auto_commit=True, verbose=False)
             execute_query(connection, "select * from lines_profitableline")
 
-            execute_update(connection, sql=f"insert ignore into lines_profitableline (line_type_id, forward_range, backward_range, profit_percentage) values ((select id from lines_profitablelinetype where name='{new_line_str}' ),{module_config['line_profit_forward_range']},{module_config['line_profit_backward_range']},{profit_percentage})", auto_commit=True, verbose=False)
+            execute_update(connection, sql=f"insert ignore into lines_profitableline (line_type_id, forward_range, backward_range, profit_percentage) values ((select id from lines_profitablelinetype where name='{new_line_str}' ),{module_config['line_profit_forward_range']},{module_config['line_profit_backward_range']},{int(profit_percentage)})", auto_commit=True, verbose=False)
 
-            execute_query(connection,f"select * from lines_profitableline_histories where profitableline_id = (select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{new_line_str}'))",verbose=True)
+            execute_query(connection,f"select * from lines_profitableline_histories where profitableline_id = (select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{new_line_str}'))",verbose=False)
 
             for index in indexes:
-                execute_update(connection,f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where forward_range={module_config['line_profit_forward_range']} and backward_range={module_config['line_profit_backward_range']} and profit_percentage={profit_percentage}), (select id from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and timestamp={ticker_history[index].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))",auto_commit=False, verbose=False)
+                execute_update(connection,f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where forward_range={module_config['line_profit_forward_range']} and backward_range={module_config['line_profit_backward_range']} and profit_percentage={int(profit_percentage)}), (select id from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and timestamp={ticker_history[index].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))",auto_commit=False, verbose=False)
             connection.commit()
             time.sleep(1)
     pass
@@ -346,25 +346,38 @@ def find_ticker_profitable_lines(ticker, ticker_history,  module_config):
     backtest_results = {}
     # start x bars in the past so we can do our forward looking
     potential_profitable_lines = {}
-    for i in reversed(range(_module_config['line_profit_forward_range'], len(ticker_history)-_module_config['line_profit_backward_range'])):
-        i = i * -1 #dumb lol
-        profitability = determine_line_profitability(ticker, ticker_history, i, _module_config)
+    # normalized_history = normalize_prices(ticker_history, ticker_history, module_config, to_five=True)
+    for i in reversed(range(_module_config['line_profit_forward_range']+1, len(ticker_history)-_module_config['line_profit_backward_range'])):
+
+        new_i = i * -1 #dumb lol
+        if new_i+1+_module_config['line_profit_forward_range'] == 0:
+            break
+
+        # profitability = determine_line_profitability(ticker, ticker_history, new_i, _module_config)
+
+        normalized_history =normalize_prices(ticker_history[:new_i+1+_module_config['line_profit_forward_range']], ticker_history[:new_i+1+_module_config['line_profit_forward_range']], module_config, to_five=True)
+        profitability =  determine_line_profitability(ticker,normalized_history, -1*(1+_module_config['line_profit_forward_range']), _module_config)
+        # tmp_profitability =  determine_line_profitability(ticker,ticker_history, new_i, _module_config)
+        # for i in range()
+        # print(f"On ${ticker}: Last ({ticker_history[new_i].dt}): ${ticker_history[new_i].close}, Profit Percentage after {module_config['line_profit_forward_range']} bars: {tmp_profitability} (${ticker_history[new_i+module_config['line_profit_forward_range']].close})| Normalized to $5.00: {normalized_history[-1-_module_config['line_profit_forward_range']].close},  Profit Percentage after {module_config['line_profit_forward_range']}: {profitability} (${normalized_history[-1].close})")
+        # print(f"On ${ticker}: Last ({normalized_history[new_i].dt}): ${normalized_history[new_i].close}, Profit Percentage after {module_config['line_profit_forward_range']} bars: {profitability} (${normalized_history[new_i+module_config['line_profit_forward_range']].close})| Normalized to $5.00: {normalized_history[new_i].close},  Profit Percentage after {module_config['line_profit_forward_range']}: {profitability} (${new_normal[new_i+module_config['line_profit_forward_range']].close})")
+        # print(f"Normalized to $5.00: {normalized_history[new].close},  Profit Percentage after {module_config['line_profit_forward_range']}: {profitability} (${normalized_history[i+module_config['line_profit_forward_range']].close})")
         if profitability  >= _module_config['line_profit_minimum'] or profitability <= _module_config['line_profit_minimum']*-1:
             #todo write the profitz hurr
             # print(f"Found profitable line on {ticker}:{human_readable_datetime(timestamp_to_datetime(ticker_history[i].timestamp))}: Profit Percentage: {profitability}")
-            if int(profitability) not in potential_profitable_lines:
+            if round(float(profitability),2) not in potential_profitable_lines:
 
-                potential_profitable_lines[int(profitability)] = []
-            potential_profitable_lines[int(profitability)].append(i)
+                potential_profitable_lines[round(float(profitability),2)] = []
+            potential_profitable_lines[round(float(profitability),2)].append(new_i)
 
     #blah ok now that i'm not sleepy let's try to figure this out
     #basically we need to compare each potential profitable line to the other profitable lines we've found so far
     #if they're the same line, we can keep them in the listing, otherwise we need to remove them
 
     # profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history,{[x for x in potential_profitable_lines.keys()][0]:potential_profitable_lines[[x for x in potential_profitable_lines.keys()][0]]}, module_config)
-    potential_profitable_lines = {k:v for k,v in potential_profitable_lines.items() if len(v) > 20}
+    potential_profitable_lines = {k:v for k,v in potential_profitable_lines.items() if len(v) > 1}
 
-    profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history, potential_profitable_lines, module_config)
+    profitable_lines = scrub_potential_profitable_lines(ticker, normalize_prices(ticker_history, ticker_history, module_config, to_five=True), potential_profitable_lines, module_config)
     return profitable_lines
 
     # pass
@@ -387,7 +400,21 @@ def determine_line_profitability(ticker, ticker_history, index, module_config):
     # pass
     # return 1
     #ok so the idea here is to compare the history[index] to hisory[index+forward_range] and calculate the percentage
-    return calculate_percentage(ticker_history[index+module_config['line_profit_forward_range']].close-ticker_history[index].close, ticker_history[index].close )
+    # not sure why this isn't working
+
+    if ticker_history[index + module_config['line_profit_forward_range']].close >= ticker_history[index].close:
+        #ifthe move is positive
+        #find the change
+        delta = ticker_history[index + module_config['line_profit_forward_range']].close - ticker_history[index].close
+        multiplier = 1
+
+    else:
+        #the move is negative
+        delta = ticker_history[index].close -  ticker_history[index + module_config['line_profit_forward_range']].close
+        multiplier = -1
+
+    return round(float(calculate_percentage(delta, ticker_history[index].close)  *float(multiplier)),2)
+    # return round(calculate_percentage(ticker_history[index+module_config['line_profit_forward_range']].close-ticker_history[index].close, ticker_history[index].close ) * 1.00 if ticker_history[index+module_config['line_profit_forward_range']].close >= ticker_history[index].close else -1.00, 2)
 
 
 # def determine_line_similarity(_x, _y):
@@ -422,8 +449,31 @@ def adjust_ticker_history_by_percentage(ticker_history,percentage, module_config
         #
         th.append(TickerHistory(round(float(percentage*open_one_percent),2),round(float(percentage*close_one_percent),2),round(float(percentage*high_one_percent),2),round(float(percentage*low_one_percent),2), ticker_history[i].volume, ticker_history[i].timestamp))
     return th
-def normalize_prices(ticker_history_a, ticker_history_b, module_config):
+def normalize_prices(ticker_history_a, ticker_history_b, module_config, to_five=False):
     # ok first we detemine the larger of the two
+    if to_five: #normalize to $5, or a penny stock cutoff
+        # if ticker_history_a[-1].close > 5.00:
+        # we need to figure out what percentage of a  is b
+        # percentage = int(float((ticker_history_a[-1].close - 5) / 5.00) * 100)*-1
+        # percentage = int(5.00/float(ticker_history_a[-1].close ) * 100) /100
+        # one_percent = ticker_history_b[-1].close / 100
+        new_ticker_history =[]
+        percentage = int(float((ticker_history_a[-1].close - 5) / 5.00) * 100)
+        for hist  in ticker_history_a:
+            new_ticker_history.append(TickerHistory(hist.open - ((5.00 / 100) * percentage),hist.close - ((5.00 / 100) * percentage),hist.high - ((5.00 / 100) * percentage),hist.low - ((5.00 / 100) * percentage), hist.volume, hist.timestamp))
+        return new_ticker_history
+        # ok so first
+        # pass
+        # else:
+        #     new_ticker_history = []
+        #     percentage = int(float((ticker_history_a[-1].close - 5) / 5.00) * 100)
+        #     for hist in ticker_history_a:
+        #         new_ticker_history.append(
+        #             TickerHistory(hist.open - ((5.00 / 100) * percentage), hist.close - ((5.00 / 100) * percentage),
+        #                           hist.high - ((5.00 / 100) * percentage), hist.low - ((5.00 / 100) * percentage),
+        #                           hist.volume, hist.timestamp))
+        #     return new_ticker_history
+
     if ticker_history_a[-1].close > ticker_history_b[-1].close:
         # we need to figure out what percentage of a  is b
         percentage = int(float(ticker_history_a[-1].close / ticker_history_b[-1].close)*100)

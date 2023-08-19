@@ -48,7 +48,7 @@ def process_ticker_alerts(connection, ticker, ticker_history, module_config):
         # def load_macd(ticker, ticker_history, module_config):
         # def did_golden_cross_alert(indicator_data, ticker, ticker_history, module_config)
         # def determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config):
-        print(f"Running {indicator} on {ticker}")
+        # print(f"Running {indicator} on {ticker}")
         if function_dict[InventoryFunctionTypes.DID_ALERT](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history,module_config, connection=connection), ticker, ticker_history, module_config, connection=connection):
             #alert did fire, so now we need to write the alert
             try:
@@ -59,8 +59,8 @@ def process_ticker_alerts(connection, ticker, ticker_history, module_config):
 
     # execute_update(connection, "lock tables alerts_tickeralert write, history_tickerhistory read, tickers_ticker read")
     if len(values_list) > 0:
-        # execute_query(connection,f"select * from alerts_tickeralert where ticker_history_id=(select max(id) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')", verbose=True)
-        execute_update(connection,f"insert ignore into alerts_tickeralert (alert_type, ticker_history_id) values {','.join(values_list)}",auto_commit=False, verbose=True, cache=True)
+        # execute_query(connection,f"select * from alerts_tickeralert where ticker_history_id=(select max(id) from history_tickerhistory where ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}')", verbose=False)
+        execute_update(connection,f"insert ignore into alerts_tickeralert (alert_type, ticker_history_id) values {','.join(values_list)}",auto_commit=False, verbose=False, cache=True)
     #iterate back through, but this time we only fire the ignore functions, which should simply load the alerts for the period from the DB and then
     # ignore any alerts based upon other alerts
     #todo run ignores
@@ -141,11 +141,21 @@ def get_indicator_inventory():
             InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_profitable_lines_alert_type,
             InventoryFunctionTypes.IGNORE: ignore_profitable_lines_alert,
             InventoryFunctionTypes.USE_N1_BARS: False
-        }
+        },
 
+        Indicator.ADX_REVERSAL: {
+            InventoryFunctionTypes.LOAD: load_dmi_adx,
+            InventoryFunctionTypes.DID_ALERT: did_adx_reversal_alert,
+            InventoryFunctionTypes.DETERMINE_ALERT_TYPE: determine_adx_reversal_alert_type,
+            InventoryFunctionTypes.IGNORE: ignore_adx_reversal_alert,
+            InventoryFunctionTypes.USE_N1_BARS: False
+        }
 
     }
 
+
+def ignore_adx_reversal_alert(connection, alert_direction, ticker, ticker_history, module_config):
+    pass
 
 def ignore_profitable_lines_alert(connection, alert_direction, ticker, ticker_history, module_config):
     pass
@@ -417,6 +427,24 @@ def did_adx_alert(dmi_data,ticker,ticker_data,module_config,connection=None):
 
     else:
         return False
+def did_adx_reversal_alert(dmi_data,ticker,ticker_data,module_config,connection=None):
+    '''
+    Pass in the data from the client and do calculations
+    :param data:
+    :return:
+    '''
+    # print(f"{ticker_data[-1].dt}: ${ticker}: ADX: {dmi_data['adx'][ticker_data[-1].timestamp]} DMI+:{dmi_data['dmi+'][ticker_data[-1].timestamp]}: DMI-{dmi_data['dmi-'][ticker_data[-1].timestamp]}")
+    # valid_dmi = (dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]) or \
+    #             (dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp])
+    if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_reversal_threshold'] and ((dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-2].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp]) or (dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-2].timestamp])):
+    # if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]:
+        leading_dmi = 'dmi+' if  dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] else 'dmi-'
+        trailing_dmi = 'dmi+' if  dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-1].timestamp] else 'dmi-'
+
+        return (dmi_data[leading_dmi][ticker_data[-1].timestamp] < dmi_data[leading_dmi][ticker_data[-2].timestamp] and dmi_data[leading_dmi][ticker_data[-2].timestamp] < dmi_data[leading_dmi][ticker_data[-3].timestamp]) and (dmi_data['adx'][ticker_data[-1].timestamp] < dmi_data['adx'][ticker_data[-2].timestamp] and dmi_data['adx'][ticker_data[-2].timestamp] < dmi_data['adx'][ticker_data[-3].timestamp]) and dmi_data[leading_dmi][ticker_data[-1].timestamp] < dmi_data[leading_dmi][ticker_data[-2].timestamp] and dmi_data['adx'][ticker_data[-1].timestamp] >  dmi_data['adx'][ticker_data[-2].timestamp]
+
+    else:
+        return False
 
 
 def did_dmi_alert(dmi_data,ticker,ticker_data,module_config,connection=None):
@@ -541,6 +569,25 @@ def determine_adx_alert_type(data, ticker,ticker_data,  module_config,connection
     return AlertType.ADX_THRESHOLD_UPWARD
 #
 # def determine_dmi_alert_type(data, ticker, ticker_data, module_config):
+
+def determine_adx_reversal_alert_type(dmi_data, ticker, ticker_data, module_config,connection=None):
+    if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_reversal_threshold'] and ((dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-2].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] >dmi_data['dmi-'][ticker_data[-2].timestamp]) or (dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-2].timestamp])):
+        # if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]:
+        # leading_dmi = 'dmi+' if dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] else 'dmi-'
+        # leading_dmi = 'dmi+' if dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp] else 'dmi-'
+        if dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp]:
+            return AlertType.ADX_REVERSAL_BULLISH
+        else:
+            return AlertType.ADX_REVERSAL_BEARISH
+        # trailing_dmi = 'dmi+' if dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-2].timestamp] else 'dmi-'
+
+        # if dmi_data[leading_dmi][ticker_data[-1].timestamp] < dmi_data[leading_dmi][ticker_data[-1].timestamp] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]:
+        #     if
+
+    else:
+        return False
+
+
 def determine_dmi_alert_type(data, ticker, ticker_data, module_config,connection=None):
     if (data['dmi+'][ticker_data[-1].timestamp] > data['dmi-'][ticker_data[-1].timestamp] and data['dmi+'][ticker_data[-2].timestamp] < data['dmi-'][ticker_data[-2].timestamp] and data['dmi+'][ticker_data[-1].timestamp] > data['adx'][ticker_data[-1].timestamp]):
         if module_config['logging']:
