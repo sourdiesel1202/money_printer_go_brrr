@@ -441,7 +441,7 @@ def did_adx_reversal_alert(dmi_data,ticker,ticker_data,module_config,connection=
         leading_dmi = 'dmi+' if  dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] else 'dmi-'
         trailing_dmi = 'dmi+' if  dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-1].timestamp] else 'dmi-'
 
-        return (dmi_data[leading_dmi][ticker_data[-1].timestamp] < dmi_data[leading_dmi][ticker_data[-2].timestamp] and dmi_data[leading_dmi][ticker_data[-2].timestamp] < dmi_data[leading_dmi][ticker_data[-3].timestamp]) and (dmi_data['adx'][ticker_data[-1].timestamp] < dmi_data['adx'][ticker_data[-2].timestamp] and dmi_data['adx'][ticker_data[-2].timestamp] < dmi_data['adx'][ticker_data[-3].timestamp]) and dmi_data[leading_dmi][ticker_data[-1].timestamp] < dmi_data[leading_dmi][ticker_data[-2].timestamp] and dmi_data['adx'][ticker_data[-1].timestamp] >  dmi_data['adx'][ticker_data[-2].timestamp]
+        return (dmi_data[leading_dmi][ticker_data[-1].timestamp] < dmi_data[leading_dmi][ticker_data[-2].timestamp] and dmi_data[leading_dmi][ticker_data[-2].timestamp] < dmi_data[leading_dmi][ticker_data[-3].timestamp]) and (dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp] and dmi_data['adx'][ticker_data[-2].timestamp] > dmi_data['adx'][ticker_data[-3].timestamp]) and dmi_data[leading_dmi][ticker_data[-1].timestamp] < dmi_data[leading_dmi][ticker_data[-2].timestamp] and dmi_data['adx'][ticker_data[-1].timestamp] >  dmi_data['adx'][ticker_data[-2].timestamp]
 
     else:
         return False
