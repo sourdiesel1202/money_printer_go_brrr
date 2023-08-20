@@ -97,10 +97,10 @@ def write_ticker_history_db_entries(connection, ticker, ticker_history, module_c
     # execute_update(connection, "lock tables history_tickerhistory write, tickers_ticker read ")
     # execute_update(connection, "start transaction")
         if len(ticker_history) > 0:
-            ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
+            # ticker_id = execute_query(connection, f"select id from tickers_ticker where symbol='{ticker}'")[1][0]
             values_entries = []
             for th in ticker_history:
-                values_entries.append(f"({ticker_id}, {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
+                values_entries.append(f"((select id from tickers_ticker where symbol='{ticker}'), {th.open}, {th.close}, {th.high}, {th.low}, {th.volume},{th.timestamp},'{module_config['timespan']}','{module_config['timespan_multiplier']}')")
             history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {','.join(values_entries)}"
             # history_sql = f"INSERT ignore INTO history_tickerhistory ( ticker_id,open, close, high, low, volume, timestamp, timespan, timespan_multiplier) VALUES {values}"
             execute_update(connection,history_sql,verbose=False, auto_commit=False)
@@ -249,7 +249,7 @@ def dump_ticker_cache(module_config):
 def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False, connection=None):
     # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
     # limit = 50000
-    if timespan == 'hour':
+    if timespan == 'hour' or timespan=='day':
         timespan = 'minute'
         multiplier = 30
         module_config['og_ts_multiplier'] = module_config['timespan_multiplier']
@@ -287,13 +287,19 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
             print(f"Writing DB history entries for ")
             write_ticker_history_db_entries(connection, ticker, history_data, {"timespan":timespan, "timespan_multiplier":multiplier})
             # connection.commit()
-        if module_config['timespan'] == 'hour':
+        if module_config['timespan'] == 'hour' or module_config['timespan'] == 'day':
             history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
             module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
-            if connection is not None:
-                write_ticker_history_db_entries(connection, ticker, history_data, module_config)
             # if module_config['logging']:
-        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record: {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
+            if module_config['timespan'] == 'day':
+                history_data = normalize_history_data_for_day(ticker, history_data, module_config)
+                if connection is not None:
+                    write_ticker_history_db_entries(connection, ticker, history_data, module_config)
+            else:
+                if connection is not None:
+                    write_ticker_history_db_entries(connection, ticker, history_data, module_config)
+
+        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record ({module_config['timespan_multiplier']} {module_config['timespan']}): {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
         # write_ticker_history_cached(ticker, history_data, module_config)
 
         return history_data
@@ -317,6 +323,23 @@ def load_ticker_history_pd_frame(ticker, ticker_history, convert_to_datetime=Fal
     return df
 
 # def load_ticker_
+
+def normalize_history_data_for_day(ticker, ticker_history, module_config):
+    days ={}
+    #the day calculation should be the easiest
+    for history in ticker_history:
+        if history.dt.strftime("%Y-%m-%d") not in days:
+            days[history.dt.strftime("%Y-%m-%d")] = []
+        days[history.dt.strftime("%Y-%m-%d")].append(history)
+    entries = []
+    #ok so now we iterate over the days and get hte opens and closes
+    #as well as the max high and the min low
+    for day, histories in days.items():
+        histories.sort(key=lambda x: x.timestamp)
+        entries.append(TickerHistory(histories[0].open, histories[-1].close, max([x.high for x in histories]), min([x.low for x in histories]), sum([x.volume for x in histories]), histories[-1].timestamp))
+        pass
+    # entries
+    return entries
 
 def normalize_history_data_for_hour(ticker, ticker_history, module_config):
     print(f"Normalizing to timespans to hour for {ticker}")

@@ -55,30 +55,31 @@ if __name__ == '__main__':
     indicator_inventory = get_indicator_inventory()
     for ticker in tickers:
         try:
-            _th = load_ticker_history_cached(ticker, module_config)
+            _th = load_ticker_history_cached(ticker, module_config)[:-50]
             if not is_ticker_eligible(ticker, _th, module_config):
                 continue
-            values_list = []
-            for indicator, function_dict in indicator_inventory.items():
-                if indicator != Indicator.ADX_REVERSAL:
-                    continue
-                if function_dict[InventoryFunctionTypes.USE_N1_BARS]:
-                    ticker_history = _th[:-1]
-                else:
-                    ticker_history = _th
-                # def load_macd(ticker, ticker_history, module_config):
-                # def did_golden_cross_alert(indicator_data, ticker, ticker_history, module_config)
-                # def determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config):
-                # print(f"Running {indicator} on {ticker}")
-                if function_dict[InventoryFunctionTypes.DID_ALERT](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history, module_config,connection=connection), ticker, ticker_history,module_config, connection=connection):
-                    # alert did fire, so now we need to write the alert
-                    try:
-                        print(f"{_th[-1].dt}: ${ticker} alerted {function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history, module_config, connection=connection), ticker, ticker_history, module_config, connection=connection)}")
-                        # values_list.append(
-                        #     f"('{function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history, module_config, connection=connection), ticker, ticker_history, module_config, connection=connection)}',(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))")
-                        # write_ticker_alert(connection, function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history,module_config), ticker, ticker_history, module_config), ticker, _th,module_config )
-                    except:
-                        traceback.print_exc()
+            else:
+                values_list = []
+                for indicator, function_dict in indicator_inventory.items():
+                    if indicator != Indicator.ADX_REVERSAL:
+                        continue
+                    if function_dict[InventoryFunctionTypes.USE_N1_BARS]:
+                        ticker_history = _th[:-1]
+                    else:
+                        ticker_history = _th
+                    # def load_macd(ticker, ticker_history, module_config):
+                    # def did_golden_cross_alert(indicator_data, ticker, ticker_history, module_config)
+                    # def determine_macd_alert_type(indicator_data,ticker,ticker_history, module_config):
+                    # print(f"Running {indicator} on {ticker}")
+                    if function_dict[InventoryFunctionTypes.DID_ALERT](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history, module_config,connection=connection), ticker, ticker_history,module_config, connection=connection):
+                        # alert did fire, so now we need to write the alert
+                        try:
+                            print(f"{_th[-1].dt}: ${ticker} alerted {function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history, module_config, connection=connection), ticker, ticker_history, module_config, connection=connection)}")
+                            # values_list.append(
+                            #     f"('{function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history, module_config, connection=connection), ticker, ticker_history, module_config, connection=connection)}',(select id from history_tickerhistory where timestamp={ticker_history[-1].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}') and timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}'))")
+                            # write_ticker_alert(connection, function_dict[InventoryFunctionTypes.DETERMINE_ALERT_TYPE](function_dict[InventoryFunctionTypes.LOAD](ticker, ticker_history,module_config), ticker, ticker_history, module_config), ticker, _th,module_config )
+                        except:
+                            traceback.print_exc()
         except:
             traceback.print_exc()
             print(f"Cannot process indicators for {ticker}")

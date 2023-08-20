@@ -74,15 +74,15 @@ def write_ticker_profitable_lines(connection, ticker, ticker_history, profitable
         if len(indexes) >= module_config['line_profit_minimum_matches']:
             new_line_str = f"Profitable Line {str(time.time()).split('.')[0]}{os.getpid()}"
             execute_query(connection, f"select * from lines_profitablelinetype where name='{new_line_str}' ")
-            execute_update(connection, sql=f"insert ignore into lines_profitablelinetype (name) values ('{new_line_str}')", auto_commit=True, verbose=False)
+            execute_update(connection, sql=f"insert ignore into lines_profitablelinetype (name) values ('{new_line_str}')", auto_commit=True, verbose=False, cache=False)
             execute_query(connection, "select * from lines_profitableline")
 
-            execute_update(connection, sql=f"insert ignore into lines_profitableline (line_type_id, forward_range, backward_range, profit_percentage) values ((select id from lines_profitablelinetype where name='{new_line_str}' ),{module_config['line_profit_forward_range']},{module_config['line_profit_backward_range']},{int(profit_percentage)})", auto_commit=True, verbose=False)
+            execute_update(connection, sql=f"insert ignore into lines_profitableline (line_type_id, forward_range, backward_range, profit_percentage) values ((select id from lines_profitablelinetype where name='{new_line_str}' ),{module_config['line_profit_forward_range']},{module_config['line_profit_backward_range']},{int(profit_percentage)})", auto_commit=True, verbose=False,cache=False)
 
             execute_query(connection,f"select * from lines_profitableline_histories where profitableline_id = (select id from lines_profitableline where line_type_id=(select id from lines_profitablelinetype where name='{new_line_str}'))",verbose=False)
 
             for index in indexes:
-                execute_update(connection,f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where forward_range={module_config['line_profit_forward_range']} and backward_range={module_config['line_profit_backward_range']} and profit_percentage={int(profit_percentage)}), (select id from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and timestamp={ticker_history[index].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))",auto_commit=False, verbose=False)
+                execute_update(connection,f"insert ignore into lines_profitableline_histories (profitableline_id, tickerhistory_id) values ((select id from lines_profitableline where forward_range={module_config['line_profit_forward_range']} and backward_range={module_config['line_profit_backward_range']} and profit_percentage={int(profit_percentage)}), (select id from history_tickerhistory where timespan='{module_config['timespan']}' and timespan_multiplier='{module_config['timespan_multiplier']}' and timestamp={ticker_history[index].timestamp} and ticker_id=(select id from tickers_ticker where symbol='{ticker}')))",auto_commit=False, verbose=False,cache=False)
             connection.commit()
             time.sleep(1)
     pass
@@ -377,7 +377,7 @@ def find_ticker_profitable_lines(ticker, ticker_history,  module_config):
     # profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history,{[x for x in potential_profitable_lines.keys()][0]:potential_profitable_lines[[x for x in potential_profitable_lines.keys()][0]]}, module_config)
     potential_profitable_lines = {k:v for k,v in potential_profitable_lines.items() if len(v) > 1}
 
-    profitable_lines = scrub_potential_profitable_lines(ticker, normalize_prices(ticker_history, ticker_history, module_config, to_five=True), potential_profitable_lines, module_config)
+    profitable_lines = scrub_potential_profitable_lines(ticker, ticker_history, potential_profitable_lines, module_config)
     return profitable_lines
 
     # pass

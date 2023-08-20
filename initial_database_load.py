@@ -2,6 +2,8 @@
 import os, operator
 import traceback
 import multiprocessing
+
+from db_functions import combine_db_update_files, execute_bulk_update_file
 from notification import send_email, generate_mpd_html_table
 # Press ⇧F10 to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
@@ -35,7 +37,7 @@ def load_ticker_histories(_tickers):
             print(f"Attempting to load data for {_tickers.index(ticker)}/{len(_tickers)}")
             try:
                 # if not module_config['test_mode']:
-                _ = load_ticker_history_raw(ticker['symbol'],  client, module_config['timespan_multiplier'], module_config['timespan'], get_today(module_config, minus_days=180), get_today(module_config, minus_days=2), 50000, module_config, connection=connection)
+                _ = load_ticker_history_raw(ticker['symbol'],  client, module_config['timespan_multiplier'], module_config['timespan'], get_today(module_config, minus_days=730), get_today(module_config,), 50000, module_config, connection=connection)
                 # else:
                 # _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), 11, limit=50000, module_config=_module_config)
                 successes.append(ticker)
@@ -54,9 +56,9 @@ if __name__ == '__main__':
     try:
         tickers = load_nyse_tickers_cached(module_config)
         print(f"Writing Ticker Data for {len(tickers)} tickers")
-        write_tickers_to_db(connection, tickers, module_config)
+        # write_tickers_to_db(connection, tickers, module_config)
         unloaded_tickers = []
-        rows = execute_query(connection, "select t.* from tickers_ticker t left join history_tickerhistory ht on t.id = ht.ticker_id where ht.id is null")
+        rows = execute_query(connection, "select t.* from tickers_ticker t where symbol='YUM'")
         for i in range(1, len(rows)):
             entry = {}
             for ii in range(0, len(rows[0])):
@@ -66,7 +68,15 @@ if __name__ == '__main__':
 
         client = RESTClient(api_key=module_config['api_key'])
         # load_ticker_histories(unloaded_tickers)
-        process_list_concurrently(unloaded_tickers, load_ticker_histories, int(len(unloaded_tickers)/module_config['num_processes'])+1)
+        if module_config['run_concurrently']:
+            process_list_concurrently(unloaded_tickers, load_ticker_histories, int(len(unloaded_tickers)/module_config['num_processes'])+1)
+        else:
+            load_ticker_histories([unloaded_tickers[-1]])
+            # load_ticker_histories(unloaded_tickers)
+
+        combine_db_update_files(module_config)
+        execute_bulk_update_file(connection, module_config)
+
     except:
         connection.close()
     print(f"\nCompleted MPB Initial Database Load in {int((int(time.time()) - start_time) / 60)} minutes and {int((int(time.time()) - start_time) % 60)} seconds")

@@ -436,7 +436,7 @@ def did_adx_reversal_alert(dmi_data,ticker,ticker_data,module_config,connection=
     # print(f"{ticker_data[-1].dt}: ${ticker}: ADX: {dmi_data['adx'][ticker_data[-1].timestamp]} DMI+:{dmi_data['dmi+'][ticker_data[-1].timestamp]}: DMI-{dmi_data['dmi-'][ticker_data[-1].timestamp]}")
     # valid_dmi = (dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]) or \
     #             (dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp])
-    if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_reversal_threshold'] and ((dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-2].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp]) or (dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-2].timestamp])):
+    if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_reversal_threshold'] and ((dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp]) or (dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-1].timestamp])):
     # if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]:
         leading_dmi = 'dmi+' if  dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] else 'dmi-'
         trailing_dmi = 'dmi+' if  dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-1].timestamp] else 'dmi-'
@@ -571,14 +571,15 @@ def determine_adx_alert_type(data, ticker,ticker_data,  module_config,connection
 # def determine_dmi_alert_type(data, ticker, ticker_data, module_config):
 
 def determine_adx_reversal_alert_type(dmi_data, ticker, ticker_data, module_config,connection=None):
-    if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_reversal_threshold'] and ((dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-2].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] >dmi_data['dmi-'][ticker_data[-2].timestamp]) or (dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-2].timestamp])):
+    if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_reversal_threshold'] and ((dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-1].timestamp] and dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp]) or (dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] and dmi_data['dmi-'][ticker_data[-1].timestamp] > dmi_data['dmi+'][ticker_data[-1].timestamp])):
+
         # if dmi_data['adx'][ticker_data[-1].timestamp] > module_config['adx_threshold'] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]:
         # leading_dmi = 'dmi+' if dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp] else 'dmi-'
         # leading_dmi = 'dmi+' if dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-2].timestamp] else 'dmi-'
         if dmi_data['dmi+'][ticker_data[-1].timestamp] > dmi_data['dmi-'][ticker_data[-1].timestamp]:
-            return AlertType.ADX_REVERSAL_BULLISH
-        else:
             return AlertType.ADX_REVERSAL_BEARISH
+        else:
+            return AlertType.ADX_REVERSAL_BULLISH
         # trailing_dmi = 'dmi+' if dmi_data['dmi+'][ticker_data[-1].timestamp] < dmi_data['dmi-'][ticker_data[-2].timestamp] else 'dmi-'
 
         # if dmi_data[leading_dmi][ticker_data[-1].timestamp] < dmi_data[leading_dmi][ticker_data[-1].timestamp] and dmi_data['adx'][ticker_data[-1].timestamp] > dmi_data['adx'][ticker_data[-2].timestamp]:
