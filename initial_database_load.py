@@ -37,7 +37,7 @@ def load_ticker_histories(_tickers):
             print(f"Attempting to load data for {_tickers.index(ticker)}/{len(_tickers)}")
             try:
                 # if not module_config['test_mode']:
-                _ = load_ticker_history_raw(ticker['symbol'],  client, module_config['timespan_multiplier'], module_config['timespan'], get_today(module_config, minus_days=730), get_today(module_config,), 50000, module_config, connection=connection)
+                _ = load_ticker_history_raw(ticker['symbol'],  client, module_config['timespan_multiplier'], module_config['timespan'], get_today(module_config, minus_days=730), get_today(module_config,), 50000, module_config, connection=connection, single_timeframe=True)
                 # else:
                 # _ = load_ticker_history_raw(ticker, client,1, module_config['timespan'],get_today(module_config, minus_days=365), 11, limit=50000, module_config=_module_config)
                 successes.append(ticker)
@@ -58,7 +58,7 @@ if __name__ == '__main__':
         print(f"Writing Ticker Data for {len(tickers)} tickers")
         # write_tickers_to_db(connection, tickers, module_config)
         unloaded_tickers = []
-        rows = execute_query(connection, "select t.* from tickers_ticker t where symbol='YUM'")
+        rows = execute_query(connection, "select t.* from tickers_ticker t")
         for i in range(1, len(rows)):
             entry = {}
             for ii in range(0, len(rows[0])):

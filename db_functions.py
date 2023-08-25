@@ -159,8 +159,11 @@ def combine_db_update_files(module_config):
 def execute_bulk_update_file(connection, module_config):
     execute_update(connection, "start transaction", cache=False)
     with open(f"sql/updates.sql", 'r') as f:
+        i = 1
         for statement in f.readlines():
             if 'update' in statement.lower() or 'insert' in statement.lower():
+                print(f"Executing {i}/{len(f.readlines())}: {statement}")
                 execute_update(connection, statement, auto_commit=False, verbose=False, cache=False)
+                i = +1
     execute_update(connection, "commit",cache=False)
     os.system(f"rm sql/updates.sql")

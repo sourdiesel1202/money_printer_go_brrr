@@ -246,7 +246,7 @@ def dump_ticker_cache(module_config):
 
     #ok so the idea with this one is that we dump a year worth of data to the cache
     pass
-def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False, connection=None):
+def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", from_ = "2023-07-06", to = "2023-07-06", limit=500, module_config={}, cached=False, connection=None, single_timeframe=False):
     # ticker = ticker, multiplier = 1, timespan = "hour", from_ = today, to = today,
     # limit = 50000
     if timespan == 'hour' or timespan=='day':
@@ -259,7 +259,7 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
     else:
         # if os.path.exists(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv"):
         #     clear_ticker_history_cache_entry(ticker,module_config)
-        history_data =  []
+        minute_data =  []
         for entry in client.list_aggs(ticker=ticker,multiplier = multiplier, timespan = timespan, from_ = from_, to = to, limit=50000, sort='asc'):
             entry_date = datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))
             # print(f"{entry_date}: {ticker}| Open: {entry.open} High: {entry.high} Low: {entry.low} Close: {entry.close} Volume: {entry.volume}")
@@ -270,39 +270,54 @@ def load_ticker_history_raw(ticker,client, multiplier = 1, timespan = "hour", fr
                     elif (datetime.datetime.fromtimestamp(entry.timestamp / 1e3, tz=ZoneInfo('US/Eastern'))).hour >=16:
                         continue
                     else:
-                        history_data.append(TickerHistory(entry.open, entry.close, entry.high, entry.low, entry.volume,entry.timestamp))
+                        minute_data.append(TickerHistory(entry.open, entry.close, entry.high, entry.low, entry.volume,entry.timestamp))
 
                 else:
-                    history_data.append(TickerHistory(entry.open, entry.close,entry.high, entry.low, entry.volume, entry.timestamp))
+                    minute_data.append(TickerHistory(entry.open, entry.close,entry.high, entry.low, entry.volume, entry.timestamp))
 
         if module_config['test_mode']:
             if module_config['test_use_test_time']:
                 # print(f"using test time")
                 #rn make this work with the hours only
-                for i in range(0, len(history_data)):
-                    if timestamp_to_datetime(history_data[-i].timestamp).hour == module_config['test_time']:
-                        history_data = history_data[:-i+1]
+                for i in range(0, len(minute_data)):
+                    if timestamp_to_datetime(minute_data[-i].timestamp).hour == module_config['test_time']:
+                        history_data = minute_data[:-i+1]
                         break
         if connection is not None:
             print(f"Writing DB history entries for ")
-            write_ticker_history_db_entries(connection, ticker, history_data, {"timespan":timespan, "timespan_multiplier":multiplier})
+            # ??if not single_timeframe:
+            if not single_timeframe or module_config['timespan'] =='minute':
+                write_ticker_history_db_entries(connection, ticker, minute_data, {"timespan":timespan, "timespan_multiplier":multiplier})
             # connection.commit()
         if module_config['timespan'] == 'hour' or module_config['timespan'] == 'day':
-            history_data = normalize_history_data_for_hour(ticker, history_data, module_config)
+            hour_data = normalize_history_data_for_hour(ticker, minute_data, module_config)
             module_config['timespan_multiplier'] = module_config['og_ts_multiplier']
             # if module_config['logging']:
             if module_config['timespan'] == 'day':
-                history_data = normalize_history_data_for_day(ticker, history_data, module_config)
+                day_data = normalize_history_data_for_day(ticker, hour_data, module_config)
                 if connection is not None:
-                    write_ticker_history_db_entries(connection, ticker, history_data, module_config)
+                    if not single_timeframe or module_config['timespan'] =='day':
+                        write_ticker_history_db_entries(connection, ticker, day_data, module_config)
             else:
                 if connection is not None:
-                    write_ticker_history_db_entries(connection, ticker, history_data, module_config)
+                    write_ticker_history_db_entries(connection, ticker, hour_data, module_config)
 
-        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record ({module_config['timespan_multiplier']} {module_config['timespan']}): {datetime.datetime.fromtimestamp(history_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(history_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(history_data)}")
         # write_ticker_history_cached(ticker, history_data, module_config)
 
-        return history_data
+        if module_config['timespan'] =='hour':
+            print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record ({module_config['timespan_multiplier']} {module_config['timespan']}): {datetime.datetime.fromtimestamp(hour_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(hour_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(hour_data)}")
+
+            return hour_data
+        elif module_config['timespan']=='day':
+            print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record ({module_config['timespan_multiplier']} {module_config['timespan']}): {datetime.datetime.fromtimestamp(day_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(day_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(day_data)}")
+            return day_data
+        else:
+            print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:${ticker}: Latest History Record ({module_config['timespan_multiplier']} {module_config['timespan']}): {datetime.datetime.fromtimestamp(minute_data[-1].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Oldest History Record: {datetime.datetime.fromtimestamp(minute_data[0].timestamp / 1e3, tz=ZoneInfo('US/Eastern'))}:Total: {len(minute_data)}")
+
+            return minute_data
+
+        # return history_data
+
 def write_ticker_history_cached(ticker, ticker_history, module_config):
     write_csv(f"{module_config['output_dir']}cached/{ticker}{module_config['timespan_multiplier']}{module_config['timespan']}.csv",convert_ticker_history_to_csv(ticker, ticker_history))
 def load_ticker_history_csv(ticker, ticker_history, convert_to_datetime=False, human_readable=False):

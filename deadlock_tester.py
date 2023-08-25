@@ -55,10 +55,10 @@ if __name__ == '__main__':
 
         start_time = time.time()
         connection = obtain_db_connection(module_config)
-        load_market_history(connection, module_config)
+        # load_market_history(connection, module_config)
 
-        # combine_db_update_files(module_config)
-        # execute_bulk_update_file(connection, module_config)
+        combine_db_update_files(module_config)
+        execute_bulk_update_file(connection, module_config)
 
         #ok so the idea that I want to test here is around writing my DB updates to a big ass file from the child procs
         #subsequently writing those updates to the DB from the main proc
